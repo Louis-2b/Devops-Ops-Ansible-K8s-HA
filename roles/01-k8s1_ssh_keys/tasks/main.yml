@@ -1,0 +1,20 @@
+---
+- name: Copier le script k8s1_ssh_keys.sh
+  ansible.builtin.copy:
+    src: k8s1_ssh_keys.sh
+    dest: /tmp/k8s1_ssh_keys.sh
+    mode: '0755'
+  tags: 
+    - k8s1_ssh_keys
+
+- name: Exécuter k8s1_ssh_keys.sh
+  ansible.builtin.command: /tmp/k8s1_ssh_keys.sh
+  tags: 
+    - k8s1_ssh_keys
+
+- name: Supprimer le script k8s1_ssh_keys.sh
+  ansible.builtin.file:
+    path: /tmp/k8s1_ssh_keys.sh
+    state: absent  
+  tags: 
+    - k8s1_ssh_keys

@@ -1,0 +1,20 @@
+---
+- name: Copier le script k8s_prereq.sh
+  ansible.builtin.copy:
+    src: k8s_prereq.sh
+    dest: /tmp/k8s_prereq.sh
+    mode: '0755'
+  tags: 
+    - k8s_prereq
+
+- name: Exécuter k8s_prereq.sh
+  ansible.builtin.command: /tmp/k8s_prereq.sh
+  tags: 
+    - k8s_prereq
+
+- name: Supprimer le script k8s_prereq.sh
+  ansible.builtin.file:
+    path: /tmp/k8s_prereq.sh
+    state: absent  
+  tags: 
+    - k8s_prereq

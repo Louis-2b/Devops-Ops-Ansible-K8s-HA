@@ -1,0 +1,75 @@
+---
+- name: Configurer le cluster Kubernetes avec HAProxy
+  hosts: all
+  become: yes  # Utiliser sudo
+  tasks:
+
+    - name: Configurer les clés SSH pour k8s1
+      ansible.builtin.include_role:
+        name: 01-k8s1_ssh_keys
+      when: inventory_hostname == 'k8s1'
+
+    - name: Configurer les clés SSH pour haproxy1
+      ansible.builtin.include_role:
+        name: 02-haproxy1_ssh_keys
+      when: inventory_hostname == 'haproxy1'
+
+    - name: Configurer le pare-feu pour les nœuds master
+      ansible.builtin.include_role:
+        name: 03-config_firewall_master
+      when: inventory_hostname in groups['control_plane']    
+
+    - name: Configurer le pare-feu pour les nœuds worker
+      ansible.builtin.include_role:
+        name: 04-config_firewall_worker
+      when: inventory_hostname in groups['worker_node']  
+
+    - name: Configurer le pare-feu pour HAProxy
+      ansible.builtin.include_role:
+        name: 05-config_firewall_haproxy
+      when: inventory_hostname in groups['haproxy_srv']
+
+    - name: Installer les prérequis Kubernetes
+      ansible.builtin.include_role:
+        name: 06-k8s_prereq
+      when: inventory_hostname in groups['control_plane'] or inventory_hostname in groups['worker_node'] 
+
+    - name: Configurer le système
+      ansible.builtin.include_role:
+        name: 07-system_config  
+
+    - name: Installer containerd
+      ansible.builtin.include_role:
+        name: 08-install_containerd
+      when: inventory_hostname in groups['control_plane'] or inventory_hostname in groups['worker_node'] 
+
+    - name: Installer les outils Kubernetes
+      ansible.builtin.include_role:
+        name: 09-install_k8s_tools
+      when: inventory_hostname in groups['control_plane'] or inventory_hostname in groups['worker_node'] 
+
+    - name: Configurer HAProxy
+      ansible.builtin.include_role:
+        name: 10-config_haproxy
+      when: inventory_hostname in groups['haproxy_srv'] 
+
+    - name: Installer les outils HA
+      ansible.builtin.include_role:
+        name: 11-install_ha_tools
+      when: inventory_hostname in groups['haproxy_srv']   
+
+    - name: Configurer Corosync et Pacemaker
+      ansible.builtin.include_role:
+        name: 12-config_corosync-pacemaker
+      when: inventory_hostname == 'haproxy1' 
+
+    - name: Configurer kube-vip
+      ansible.builtin.include_role:
+        name: 13-config_kube-vip
+      when: inventory_hostname == 'haproxy1'  
+
+    - name: Initialiser le cluster Kubernetes
+      ansible.builtin.include_role:
+        name: 14-init_k8s_cluster
+      when: inventory_hostname == 'k8s1'
+     # tags: init_cluster   # 👈 essentiel !
