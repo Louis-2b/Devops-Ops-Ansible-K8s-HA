@@ -73,3 +73,19 @@
         name: 14-init_k8s_cluster
       when: inventory_hostname == 'k8s1'
      # tags: init_cluster   # 👈 essentiel !
+
+
+### # === INSTALLATION DE INGRESS-NGINX CONTROLLER === ############### 
+    - name: Installer ingress-nginx
+      ansible.builtin.include_role:
+        name: 15-install_ingress-nginx
+      when: inventory_hostname == 'k8s1'
+      tags: ingress-nginx   # 👈 essentiel ! 
+
+
+### # === INSTALLATION DE METALLB === ################################ 
+    - name: Installer install-MetalLB
+      ansible.builtin.include_role:
+        name: 16-install-MetalLB
+      when: inventory_hostname == 'k8s1'
+      tags: install-MetalLB   # 👈 essentiel !
