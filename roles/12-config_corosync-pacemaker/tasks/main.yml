@@ -1,0 +1,20 @@
+---
+- name: Copier le script config_corosync-pacemaker.sh
+  ansible.builtin.copy:
+    src: config_corosync-pacemaker.sh
+    dest: /tmp/config_corosync-pacemaker.sh
+    mode: '0755'
+  tags: 
+    - config_corosync-pacemaker
+
+- name: Exécuter config_corosync-pacemaker.sh
+  ansible.builtin.command: /tmp/config_corosync-pacemaker.sh
+  tags: 
+    - config_corosync-pacemaker
+
+- name: Supprimer le script config_corosync-pacemaker.sh
+  ansible.builtin.file:
+    path: /tmp/config_corosync-pacemaker.sh
+    state: absent  
+  tags: 
+    - config_corosync-pacemaker
