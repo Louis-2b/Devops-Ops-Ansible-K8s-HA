@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: postgres-pvc
+  namespace: database
+  labels:
+    app: postgres
+
+spec:
+  accessModes:
+    - ReadWriteOnce  # RWO : demande un accès lecture-écriture exclusif
+  
+  resources:
+    requests: 
+      storage: 1Gi
+
+  storageClassName: manual
+  selector:
+    matchLabels:
+      app: postgres
+      type: database

@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mongo-pv
+
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath:
+    path: /data/mongo
+    type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  namespace: database
+
+spec:
+  accessModes:
+    - ReadWriteOnce  # RWO : demande un accès lecture-écriture exclusif
+  
+  resources:
+    requests: 
+      storage: 1Gi
+
+  storageClassName: manual
+  volumeName: mongo-pv  # Lie explicitement à ce PV

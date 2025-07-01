@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: mongodb
+  namespace: database
+  labels:
+    app: mongo
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+
+  template:
+    metadata:
+      labels:
+        app: mongo
+
+    spec:
+      containers:
+      - name: mongo
+        image: mongo:6.0
+
+        ports:
+        - containerPort: 27017
+          name: mongo-port
+
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: epoc
+
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: mongo_root_username
+
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: mongo_root_password
+
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+
+      volumes:
+      - name: mongo-data
+        persistentVolumeClaim:
+          claimName: mongo-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-service
+  namespace: database
+  labels:
+    app: mongo
+
+spec:
+  selector:
+    app: mongo
+
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+      name: mongo-port  # Bonne pratique : nommer le port

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgadmin-service
+  namespace: database
+  labels:
+    app: pgadmin
+
+spec:
+  selector:
+    app: pgadmin
+  type: LoadBalancer
+
+  ports:
+    - protocol: TCP
+      port: 80 # Port standard pour pgAdmin
+      targetPort: 80
+      nodePort: 30000
+      name: pgadmin-port  # Bonne pratique : nommer le port

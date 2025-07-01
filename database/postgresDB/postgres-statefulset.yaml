@@ -1,0 +1,72 @@
+# Un StatefulSet est idéal pour les bases de données car il garantit :
+# - Un nom de pod stable et prévisible
+# - Un stockage persistant associé à chaque pod
+# - Un ordre de démarrage/arrêt contrôlé
+
+apiVersion: apps/v1
+kind: StatefulSet
+
+metadata:
+  name: postgres-statefulset
+  namespace: database
+  labels:
+    app: postgres
+
+spec:
+  serviceName: "postgres-service"  # Devrait correspondre au nom de votre Service headless
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: postgres  # Doit correspondre au label dans pod template
+
+  template:
+    metadata:
+      labels:
+        app: postgres
+
+    spec:
+      containers:
+      - name: postgres
+        image: docker.io/library/postgres:17.2 # Image officielle de PostgreSQL
+
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: username
+
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+
+        - name: POSTGRES_DB
+          value: "micro-svc-db"
+
+        - name: PGDATA  # Variable importante pour PostgreSQL
+          value: "/var/lib/postgresql/data/pgdata"  # Chemin recommandé pour les installations conteneurisées
+
+        ports:
+        - containerPort: 5432
+          name: postgres-port  # Bonne pratique: nommer les ports
+
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+          subPath: pgdata  # Bonne pratique: utiliser un subPath pour isoler les données
+
+        resources:  # Ajout recommandé: limites de ressources
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-pvc
