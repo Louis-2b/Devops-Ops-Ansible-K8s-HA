@@ -1,0 +1,24 @@
+---
+- name: Copier le script ingress-nginx.sh
+  ansible.builtin.copy:
+    src: ingress-nginx.sh
+    dest: /tmp/ingress-nginx.sh
+    mode: '0755'
+  tags: 
+    - ingress-nginx
+
+- name: Exécuter ingress-nginx.sh avec PATH mis à jour
+  ansible.builtin.shell: |
+    export PATH=$PATH:/usr/local/bin
+    /tmp/ingress-nginx.sh
+  args:
+    executable: /bin/bash
+  tags: 
+    - ingress-nginx
+
+- name: Supprimer le script ingress-nginx.sh
+  ansible.builtin.file:
+    path: /tmp/ingress-nginx.sh
+    state: absent  
+  tags: 
+    - ingress-nginx
