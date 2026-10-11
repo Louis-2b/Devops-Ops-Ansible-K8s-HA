@@ -1,0 +1,42 @@
+---
+- name: Lire le certificat de l'autorité (CA) du cluster
+  ansible.builtin.slurp:
+    src: /etc/kubernetes/pki/ca.crt
+  register: k8s_rbac_ca
+  tags: [k8s_rbac]
+
+- name: Créer les ClusterRoles
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_rbac_kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: "{{ item.name }}"
+      rules: "{{ item.rules }}"
+  loop: "{{ k8s_rbac_cluster_roles }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [k8s_rbac]
+
+- name: Créer les utilisateurs (certificat client signé par le cluster)
+  ansible.builtin.include_tasks: user.yml
+  loop: "{{ k8s_rbac_users }}"
+  loop_control:
+    loop_var: k8s_rbac_user
+    label: "{{ k8s_rbac_user.name }}"
+  tags: [k8s_rbac, rbac_users]
+
+- name: Créer les comptes de service
+  ansible.builtin.include_tasks: service_account.yml
+  loop: "{{ k8s_rbac_service_accounts }}"
+  loop_control:
+    loop_var: k8s_rbac_sa
+    label: "{{ k8s_rbac_sa.namespace }}/{{ k8s_rbac_sa.name }}"
+  tags: [k8s_rbac, rbac_service_accounts]
+
+- name: Vérifier les droits effectifs
+  ansible.builtin.include_tasks: verify.yml
+  when: k8s_rbac_verify | bool
+  tags: [k8s_rbac, rbac_verify]

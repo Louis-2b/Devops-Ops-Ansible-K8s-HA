@@ -1,0 +1,45 @@
+---
+- name: Avertissement - ingress-nginx n'est plus maintenu
+  ansible.builtin.debug:
+    msg: >-
+      ingress-nginx a été retiré par le projet Kubernetes en mars 2026 : aucune mise à jour
+      de sécurité n'est publiée. Planifiez la migration vers Gateway API ou un autre contrôleur
+      d'Ingress. Voir README.md, section « Points d'attention ».
+  tags: [ingress_nginx]
+
+- name: Ajouter le dépôt Helm ingress-nginx
+  kubernetes.core.helm_repository:
+    name: ingress-nginx
+    repo_url: "{{ ingress_nginx_repo_url }}"
+  tags: [ingress_nginx]
+
+- name: Installer ou mettre à jour ingress-nginx
+  kubernetes.core.helm:
+    kubeconfig: "{{ ingress_nginx_kubeconfig }}"
+    name: "{{ ingress_nginx_release }}"
+    chart_ref: ingress-nginx/ingress-nginx
+    chart_version: "{{ ingress_nginx_chart_version }}"
+    release_namespace: "{{ ingress_nginx_namespace }}"
+    create_namespace: true
+    update_repo_cache: true
+    wait: true
+    timeout: "{{ ingress_nginx_wait_timeout }}"
+    values: "{{ ingress_nginx_default_values | combine(ingress_nginx_extra_values, recursive=True) }}"
+  vars:
+    ingress_nginx_default_values:
+      controller:
+        replicaCount: "{{ ingress_nginx_replicas }}"
+        minAvailable: 1
+        service:
+          type: LoadBalancer
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: ingress-nginx
+                      app.kubernetes.io/component: controller
+  tags: [ingress_nginx]
