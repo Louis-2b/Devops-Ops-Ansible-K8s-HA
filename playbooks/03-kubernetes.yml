@@ -4,8 +4,23 @@
 # Les modules kubernetes.core s'exécutent avec l'interpréteur Python du venv créé par
 # le rôle k8s_tooling ; il n'est donc défini qu'à partir de la deuxième play.
 
+# Le nœud d'amorçage est le premier control plane par ordre alphabétique : le résultat ne
+# dépend pas de l'ordre de l'inventaire (indispensable avec un inventaire dynamique).
+- name: Désigner le nœud d'amorçage du cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Ajouter le premier control plane au groupe k8s_bootstrap
+      ansible.builtin.add_host:
+        name: "{{ groups['control_plane'] | sort | first }}"
+        groups: k8s_bootstrap
+      changed_when: false
+      tags: [always]
+
 - name: Initialiser le premier nœud du control plane
-  hosts: control_plane[0]
+  hosts: k8s_bootstrap
   become: true
   roles:
     - role: k8s_tooling
@@ -14,7 +29,7 @@
       tags: [kubeadm_init]
 
 - name: Installer le réseau des pods (Flannel)
-  hosts: control_plane[0]
+  hosts: k8s_bootstrap
   become: true
   vars:
     ansible_python_interpreter: "{{ k8s_tooling_venv }}/bin/python"
@@ -24,7 +39,7 @@
 
 # Un nœud à la fois : chaque ajout de membre etcd doit se terminer avant le suivant.
 - name: Joindre les autres nœuds du control plane
-  hosts: control_plane[1:]
+  hosts: control_plane:!k8s_bootstrap
   become: true
   serial: 1
   roles:
@@ -40,7 +55,7 @@
       tags: [kubeadm_join]
 
 - name: Finaliser l'installation (certificats kubelet, état Ready, libellés)
-  hosts: control_plane[0]
+  hosts: k8s_bootstrap
   become: true
   vars:
     ansible_python_interpreter: "{{ k8s_tooling_venv }}/bin/python"

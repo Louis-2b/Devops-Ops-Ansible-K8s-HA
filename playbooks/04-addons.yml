@@ -4,8 +4,21 @@
 #
 # Désinstaller la supervision :
 #   ansible-playbook playbooks/04-addons.yml --tags monitoring -e monitoring_state=absent
+- name: Désigner le nœud d'amorçage du cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Ajouter le premier control plane au groupe k8s_bootstrap
+      ansible.builtin.add_host:
+        name: "{{ groups['control_plane'] | sort | first }}"
+        groups: k8s_bootstrap
+      changed_when: false
+      tags: [always]
+
 - name: Installer les addons Kubernetes
-  hosts: control_plane[0]
+  hosts: k8s_bootstrap
   become: true
   vars:
     ansible_python_interpreter: "{{ k8s_tooling_venv }}/bin/python"

@@ -1,5 +1,5 @@
 ---
-loadbalancer_vip_primary: "{{ groups['haproxy_srv'][0] }}"
+loadbalancer_vip_primary: "{{ groups['haproxy_srv'] | sort | first }}"
 loadbalancer_vip_address: "{{ k8s_control_plane_vip }}"
 loadbalancer_vip_netmask: "{{ k8s_vip_netmask }}"
 loadbalancer_vip_interface: "{{ k8s_vip_interface }}"

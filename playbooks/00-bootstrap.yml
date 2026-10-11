@@ -6,6 +6,8 @@
 #     ansible-playbook playbooks/00-bootstrap.yml --ask-pass --ask-become-pass
 #   Même compte initial partout :
 #     ansible-playbook playbooks/00-bootstrap.yml -e bootstrap_initial_user=admin --ask-pass --ask-become-pass
+#   Machines cloud (OpenStack…) : compte « rocky » et clé SSH du cloud, sans mot de passe :
+#     ansible-playbook playbooks/00-bootstrap.yml -e bootstrap_initial_user=rocky -e bootstrap_private_key=~/.ssh/ma-cle-cloud
 #
 # Prérequis sur le poste de contrôle : le paquet « sshpass » pour l'option --ask-pass.
 
@@ -17,13 +19,13 @@
   tasks:
     - name: Créer le dossier ~/.ssh
       ansible.builtin.file:
-        path: "{{ ansible_ssh_private_key_file | expanduser | dirname }}"
+        path: "{{ ansible_automation_key | expanduser | dirname }}"
         state: directory
         mode: "0700"
 
     - name: Générer la paire de clés ed25519
       community.crypto.openssh_keypair:
-        path: "{{ ansible_ssh_private_key_file | expanduser }}"
+        path: "{{ ansible_automation_key | expanduser }}"
         type: ed25519
         comment: ansible
       # L'ancienne version écrasait la clé à chaque exécution ; ici elle est conservée.
@@ -34,6 +36,7 @@
   become: true
   vars:
     ansible_user: "{{ bootstrap_initial_user | default(inventory_hostname) }}"
+    ansible_ssh_private_key_file: "{{ bootstrap_private_key | default(ansible_automation_key) }}"
   tasks:
     - name: Créer le compte {{ ansible_automation_user }}
       ansible.builtin.user:
@@ -46,7 +49,7 @@
     - name: Installer la clé publique d'Ansible
       ansible.posix.authorized_key:
         user: "{{ ansible_automation_user }}"
-        key: "{{ lookup('ansible.builtin.file', ansible_ssh_private_key_file | expanduser ~ '.pub') }}"
+        key: "{{ lookup('ansible.builtin.file', ansible_automation_key | expanduser ~ '.pub') }}"
         state: present
 
     - name: Autoriser sudo sans mot de passe pour ce compte

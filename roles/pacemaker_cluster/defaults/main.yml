@@ -9,7 +9,7 @@ pacemaker_packages:
   - resource-agents
 
 # Nœud qui exécute les commandes pcs (une seule fois pour tout le cluster).
-pacemaker_primary: "{{ groups['haproxy_srv'][0] }}"
+pacemaker_primary: "{{ groups['haproxy_srv'] | sort | first }}"
 
 # Mot de passe du compte « hacluster » : défini dans le vault (voir secrets.yml).
 pacemaker_hacluster_password: ""

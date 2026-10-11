@@ -144,6 +144,39 @@ nommage `<rôle>_…` pour les variables propres à chaque rôle, avec leurs val
 Un rôle utilisé seul a donc besoin de : `k8s_version`, `k8s_pod_cidr`, `k8s_service_cidr`, `k8s_control_plane_vip`,
 `k8s_control_plane_port`, `k8s_control_plane_endpoint`, `k8s_api_hostname`, `k8s_kube_proxy_mode`, `k8s_selinux_state`.
 
+## Déploiement sur OpenStack
+
+Inventaire dynamique : `inventories/openstack/` lit les VM depuis l'API OpenStack (plugin `openstack.cloud.openstack`) et
+réutilise les `group_vars` de `production`. Chaque VM porte une propriété `k8s_role` (`haproxy_srv`, `control_plane` ou
+`worker_node`) qui détermine son groupe ; le nom de la VM sert de nom d'hôte et de nœud Kubernetes.
+
+```bash
+pip install openstacksdk && ansible-galaxy collection install -r requirements.yml
+export OS_CLOUD=mon-cloud                                   # entrée de clouds.yaml
+openstack server set --property k8s_role=control_plane k8s1 # idem pour chaque VM
+ansible-inventory -i inventories/openstack --graph          # contrôle des groupes
+
+# 0. compte « ansible » (image Rocky : utilisateur « rocky », clé SSH du cloud)
+ansible-playbook -i inventories/openstack playbooks/00-bootstrap.yml -e bootstrap_initial_user=rocky -e bootstrap_private_key=~/.ssh/ma-cle-cloud
+# 0b. réserver la VIP dans Neutron et l'autoriser sur les ports des HAProxy
+ansible-playbook -i inventories/openstack playbooks/00-openstack.yml -e openstack_vip_network=<réseau> -e openstack_vip_subnet=<sous-réseau>
+ansible-playbook -i inventories/openstack playbooks/site.yml --ask-vault-pass
+```
+
+À savoir sur OpenStack :
+
+- **`k8s_control_plane_vip`** doit être une IP libre du sous-réseau des VM (le rôle `openstack_vip` la réserve).
+  Sans `allowed_address_pairs`, Neutron bloque la VIP et le basculement Pacemaker ne fonctionne pas.
+- **`ansible_host` = IP privée** (jamais une floating IP : c'est aussi l'adresse du nœud dans Kubernetes). Lancez Ansible depuis un
+  bastion du projet ou un VPN, ou ajoutez `ansible_ssh_common_args` avec `ProxyJump`.
+- **Groupes de sécurité** : autorisez entre les VM du cluster les ports de `group_vars/all/firewall.yml` (6443, 2379-2380, 10250,
+  8472/udp, 5405/udp, 2224/tcp…) ; firewalld filtre en plus sur chaque nœud.
+- **MetalLB (L2) ne fonctionne en général pas** sur Neutron (ARP filtré) : mettez `metallb_enabled: false` et exposez l'ingress en
+  NodePort derrière un load balancer Octavia ou des floating IPs.
+- L'interface de la VIP est détectée automatiquement (`k8s_vip_interface`).
+- L'inventaire dynamique et le rôle `openstack_vip` n'ont **pas** été testés contre un vrai cloud (collection non installable ici) :
+  vérifiez `ansible-inventory --graph`, puis `--check` pour `00-openstack.yml`.
+
 ## Points d'attention avant la production
 
 1. **etcd : 3 membres, une panne tolérée.** L'inventaire fournit 3 control planes (quorum 2/3). Avec 2 membres seulement,
