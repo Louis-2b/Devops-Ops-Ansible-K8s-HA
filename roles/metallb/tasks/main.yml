@@ -1,0 +1,68 @@
+---
+- name: Créer le répertoire des manifestes d'addons
+  ansible.builtin.file:
+    path: "{{ metallb_manifest_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  tags: [metallb]
+
+- name: Télécharger le manifeste MetalLB (version épinglée)
+  ansible.builtin.get_url:
+    url: "{{ metallb_manifest_url }}"
+    dest: "{{ metallb_manifest_dir }}/metallb-native-{{ metallb_version }}.yaml"
+    owner: root
+    group: root
+    mode: "0640"
+  tags: [metallb]
+
+- name: Déployer MetalLB et attendre que les pods soient prêts
+  kubernetes.core.k8s:
+    kubeconfig: "{{ metallb_kubeconfig }}"
+    src: "{{ metallb_manifest_dir }}/metallb-native-{{ metallb_version }}.yaml"
+    state: present
+    apply: true
+    wait: true
+    wait_timeout: "{{ metallb_wait_timeout }}"
+  tags: [metallb]
+
+# Le webhook d'admission peut mettre quelques secondes à accepter les requêtes
+# juste après le déploiement : on réessaie plutôt que de désactiver sa validation.
+- name: Définir le pool d'adresses IP
+  kubernetes.core.k8s:
+    kubeconfig: "{{ metallb_kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta1
+      kind: IPAddressPool
+      metadata:
+        name: "{{ metallb_pool_name }}"
+        namespace: metallb-system
+      spec:
+        addresses:
+          - "{{ metallb_ip_range }}"
+  register: metallb_pool
+  until: metallb_pool is succeeded
+  retries: 12
+  delay: 10
+  tags: [metallb]
+
+- name: Annoncer le pool en mode L2 (ARP)
+  kubernetes.core.k8s:
+    kubeconfig: "{{ metallb_kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta1
+      kind: L2Advertisement
+      metadata:
+        name: "{{ metallb_l2_advertisement_name }}"
+        namespace: metallb-system
+      spec:
+        ipAddressPools:
+          - "{{ metallb_pool_name }}"
+  register: metallb_l2
+  until: metallb_l2 is succeeded
+  retries: 12
+  delay: 10
+  tags: [metallb]

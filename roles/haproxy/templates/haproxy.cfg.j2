@@ -1,0 +1,44 @@
+# {{ ansible_managed }}
+global
+    log /dev/log local0
+    maxconn {{ haproxy_maxconn }}
+    user haproxy
+    group haproxy
+    daemon
+    stats socket /var/lib/haproxy/stats mode 600 level admin
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    option dontlognull
+    retries 3
+    timeout connect {{ haproxy_timeout_connect }}
+    timeout client  {{ haproxy_timeout_client }}
+    timeout server  {{ haproxy_timeout_server }}
+
+frontend kubernetes-frontend
+    bind *:{{ haproxy_bind_port }}
+    mode tcp
+    option tcplog
+    default_backend kubernetes-backend
+
+backend kubernetes-backend
+    mode tcp
+    balance {{ haproxy_balance }}
+    # Sonde HTTPS sur l'endpoint /livez de kube-apiserver (accessible sans authentification)
+    option httpchk GET {{ haproxy_health_check_path }}
+    http-check expect status 200
+    default-server inter {{ haproxy_check_interval }} fall {{ haproxy_check_fall }} rise {{ haproxy_check_rise }}
+{% for host in groups[haproxy_backend_group] %}
+    server {{ host }} {{ hostvars[host].ansible_host }}:{{ k8s_control_plane_port }} check check-ssl verify none
+{% endfor %}
+{% if haproxy_stats_enabled | bool %}
+
+listen stats
+    bind *:{{ haproxy_stats_port }}
+    mode http
+    stats enable
+    stats uri /
+    stats refresh 10s
+{% endif %}

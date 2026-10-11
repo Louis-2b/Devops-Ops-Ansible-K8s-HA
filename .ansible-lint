@@ -2,7 +2,12 @@
 profile: production
 exclude_paths:
   - .github/
+  - examples/
+  - artifacts/
 skip_list:
-  # Les variables « kubernetes_* » sont volontairement partagées entre plusieurs rôles
-  # (version, endpoint API, CIDR) : elles ne portent donc pas le préfixe d'un seul rôle.
-  - var-naming[no-role-prefix]
+  # Les noms de tâches contiennent volontairement des variables de boucle (include_tasks).
+  - name[template]
+  # Les fichiers de tâches secondaires (install.yml, user.yml…) ne préfixent pas leurs noms.
+  - name[prefix]
+warn_list:
+  - experimental

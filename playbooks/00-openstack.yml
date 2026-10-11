@@ -1,0 +1,13 @@
+---
+# Étape 0b (OpenStack uniquement, avant 02-loadbalancer.yml) : réserve la VIP dans Neutron et
+# l'autorise sur les ports des load balancers. Nécessite openstack.cloud + openstacksdk.
+#   ansible-playbook -i inventories/openstack playbooks/00-openstack.yml \
+#     -e openstack_vip_network=reseau-k8s -e openstack_vip_subnet=sous-reseau-k8s
+- name: Préparer la VIP côté OpenStack
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  roles:
+    - role: openstack_vip
+      tags: [openstack_vip]

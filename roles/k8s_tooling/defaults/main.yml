@@ -1,0 +1,16 @@
+---
+k8s_tooling_helm_version: "v3.21.4"
+k8s_tooling_helm_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
+k8s_tooling_helm_download_url: "https://get.helm.sh/helm-{{ k8s_tooling_helm_version }}-linux-{{ k8s_tooling_helm_arch }}.tar.gz"
+k8s_tooling_helm_install_dir: /opt/helm
+
+# Environnement virtuel Python utilisé par les modules kubernetes.core (RHEL 10 interdit
+# pip dans le Python système : « externally-managed-environment »).
+k8s_tooling_venv: /opt/ansible-k8s-venv
+k8s_tooling_pip_packages:
+  - kubernetes
+  - PyYAML
+  - jsonpatch
+  - cryptography
+# Index PyPI alternatif (miroir interne) ; vide = PyPI par défaut.
+k8s_tooling_pip_index_url: ""

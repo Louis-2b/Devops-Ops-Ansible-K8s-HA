@@ -1,0 +1,55 @@
+---
+# Neutron filtre le trafic par port (anti-usurpation) : pour que la VIP Pacemaker puisse
+# basculer d'un HAProxy à l'autre, son adresse doit être réservée et autorisée sur les
+# ports des deux load balancers (allowed_address_pairs). Tâches exécutées sur le poste de contrôle.
+- name: Vérifier les variables obligatoires
+  ansible.builtin.assert:
+    that:
+      - openstack_vip_network | length > 0
+      - openstack_vip_subnet | length > 0
+    fail_msg: Définissez openstack_vip_network et openstack_vip_subnet.
+    quiet: true
+
+- name: Réserver l'IP virtuelle (port Neutron dédié)
+  openstack.cloud.port:
+    cloud: "{{ openstack_vip_cloud | default(omit, true) }}"
+    name: "{{ openstack_vip_port_name }}"
+    network: "{{ openstack_vip_network }}"
+    fixed_ips:
+      - ip_address: "{{ openstack_vip_address }}"
+        subnet_id: "{{ openstack_vip_subnet }}"
+    state: present
+
+- name: Rechercher les VM load balancers
+  openstack.cloud.server_info:
+    cloud: "{{ openstack_vip_cloud | default(omit, true) }}"
+    name: "{{ openstack_vip_item }}"
+  loop: "{{ groups['haproxy_srv'] }}"
+  loop_control:
+    loop_var: openstack_vip_item
+  register: openstack_vip_servers
+
+- name: Rechercher leurs ports réseau
+  openstack.cloud.port_info:
+    cloud: "{{ openstack_vip_cloud | default(omit, true) }}"
+    filters:
+      device_id: "{{ openstack_vip_item.servers[0].id }}"
+      network_id: "{{ openstack_vip_network }}"
+  loop: "{{ openstack_vip_servers.results }}"
+  loop_control:
+    loop_var: openstack_vip_item
+    label: "{{ openstack_vip_item.openstack_vip_item }}"
+  register: openstack_vip_ports
+
+- name: Autoriser la VIP sur le port de chaque load balancer
+  openstack.cloud.port:
+    cloud: "{{ openstack_vip_cloud | default(omit, true) }}"
+    name: "{{ openstack_vip_item.ports[0].id }}"
+    network: "{{ openstack_vip_network }}"
+    allowed_address_pairs:
+      - ip_address: "{{ openstack_vip_address }}"
+    state: present
+  loop: "{{ openstack_vip_ports.results }}"
+  loop_control:
+    loop_var: openstack_vip_item
+    label: "{{ openstack_vip_item.openstack_vip_item.openstack_vip_item }}"

@@ -1,0 +1,31 @@
+---
+# Inventaire dynamique OpenStack (plugin openstack.cloud.openstack).
+#   export OS_CLOUD=mon-cloud            # entrée de ~/.config/openstack/clouds.yaml
+#   ansible-inventory -i inventories/openstack --graph
+#   ansible-playbook -i inventories/openstack playbooks/site.yml --ask-vault-pass
+#
+# Les groupes se déduisent de la métadonnée « k8s_role » posée sur chaque VM à sa création :
+#   openstack server set --property k8s_role=control_plane k8s1
+#   valeurs : haproxy_srv | control_plane | worker_node
+# Les variables de groupe sont partagées avec l'inventaire statique (lien group_vars).
+# Prérequis poste de contrôle : collection openstack.cloud et « pip install openstacksdk ».
+plugin: openstack.cloud.openstack
+expand_hostvars: true
+fail_on_errors: true
+all_projects: false
+# only_clouds: [mon-cloud]
+
+# Les noms de VM deviennent les noms d'hôtes Ansible et Kubernetes (k8s1, node1…).
+inventory_hostname: name
+
+# ansible_host sert aussi d'adresse du nœud dans Kubernetes (node-ip, etcd, advertiseAddress) :
+# utilisez l'IP PRIVÉE, jamais une floating IP. Lancez donc Ansible depuis un réseau qui
+# la joint (bastion dans le projet, VPN) ou ajoutez ansible_ssh_common_args avec ProxyJump.
+compose:
+  ansible_host: private_v4
+
+groups:
+  haproxy_srv: (metadata | default({})).k8s_role | default('') == 'haproxy_srv'
+  control_plane: (metadata | default({})).k8s_role | default('') == 'control_plane'
+  worker_node: (metadata | default({})).k8s_role | default('') == 'worker_node'
+  k8s_cluster: (metadata | default({})).k8s_role | default('') in ['control_plane', 'worker_node']

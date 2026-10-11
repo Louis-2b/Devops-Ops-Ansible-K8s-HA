@@ -1,0 +1,62 @@
+---
+# Approbation des certificats de service des kubelets (serverTLSBootstrap).
+# Le contrôleur Kubernetes ne les approuve jamais automatiquement. Ici l'approbation
+# est automatique parce que les nœuds viennent d'être ajoutés par l'administrateur ;
+# voir le README (section sécurité) pour la limite de cette approche.
+- name: Approuver les certificats kubelet-serving en attente
+  when: k8s_kubelet_serving_cert_bootstrap | bool
+  tags: [k8s_post_install, csr]
+  block:
+    - name: Lister les demandes de certificat
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ k8s_post_install_kubeconfig }}"
+        api_version: certificates.k8s.io/v1
+        kind: CertificateSigningRequest
+      register: k8s_post_install_csrs
+      until: >-
+        (k8s_post_install_csrs.resources
+          | selectattr('spec.signerName', 'equalto', 'kubernetes.io/kubelet-serving')
+          | rejectattr('status.conditions', 'defined') | list | length) > 0
+        or (k8s_post_install_csrs.resources
+          | selectattr('spec.signerName', 'equalto', 'kubernetes.io/kubelet-serving')
+          | list | length) >= (groups['k8s_cluster'] | length)
+      retries: 12
+      delay: 10
+
+    - name: Approuver les demandes en attente
+      ansible.builtin.command: >-
+        kubectl --kubeconfig {{ k8s_post_install_kubeconfig }}
+        certificate approve {{ item.metadata.name }}
+      loop: >-
+        {{ k8s_post_install_csrs.resources
+           | selectattr('spec.signerName', 'equalto', 'kubernetes.io/kubelet-serving')
+           | rejectattr('status.conditions', 'defined') | list }}
+      loop_control:
+        label: "{{ item.metadata.name }}"
+      changed_when: true
+
+- name: Attendre que tous les nœuds soient Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k8s_post_install_kubeconfig }}"
+    kind: Node
+    name: "{{ item }}"
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: "{{ k8s_post_install_ready_timeout }}"
+  loop: "{{ groups['k8s_cluster'] }}"
+  tags: [k8s_post_install, nodes]
+
+- name: Libeller les workers
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_post_install_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Node
+      metadata:
+        name: "{{ item }}"
+        labels:
+          "{{ k8s_post_install_worker_label }}": ""
+  loop: "{{ groups['worker_node'] }}"
+  tags: [k8s_post_install, nodes]

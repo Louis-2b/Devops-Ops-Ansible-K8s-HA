@@ -1,8 +1,0 @@
----
-# Version exacte du paquet containerd.io (ex. "2.3.6") ; vide = dernière version du dépôt à
-# l'installation. Les versions diffèrent entre le dépôt Rocky et le dépôt Debian de Docker.
-container_runtime_version: ""
-# Socket CRI utilisé par kubeadm, kubelet et crictl.
-container_runtime_socket: unix:///run/containerd/containerd.sock
-# Image « pause » (sandbox) ; vide = valeur par défaut de containerd.
-container_runtime_sandbox_image: ""

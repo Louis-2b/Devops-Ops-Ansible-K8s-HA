@@ -1,0 +1,38 @@
+---
+# Les nœuds doivent disposer de nfs-utils : installé par le rôle k8s_prerequisites
+# lorsque nfs_csi_enabled est vrai.
+- name: Ajouter le dépôt Helm csi-driver-nfs
+  kubernetes.core.helm_repository:
+    name: csi-driver-nfs
+    repo_url: "{{ nfs_csi_repo_url }}"
+  tags: [nfs_csi]
+
+- name: Installer le pilote CSI NFS
+  kubernetes.core.helm:
+    kubeconfig: "{{ nfs_csi_kubeconfig }}"
+    name: csi-driver-nfs
+    chart_ref: csi-driver-nfs/csi-driver-nfs
+    chart_version: "{{ nfs_csi_chart_version }}"
+    release_namespace: "{{ nfs_csi_namespace }}"
+    update_repo_cache: true
+    wait: true
+    timeout: 5m
+  tags: [nfs_csi]
+
+- name: Créer la StorageClass NFS
+  kubernetes.core.k8s:
+    kubeconfig: "{{ nfs_csi_kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: "{{ nfs_csi_storage_class.name }}"
+      provisioner: nfs.csi.k8s.io
+      parameters:
+        server: "{{ nfs_csi_storage_class.server }}"
+        share: "{{ nfs_csi_storage_class.share }}"
+      reclaimPolicy: "{{ nfs_csi_storage_class.reclaim_policy }}"
+      volumeBindingMode: "{{ nfs_csi_storage_class.volume_binding_mode }}"
+      mountOptions: "{{ nfs_csi_storage_class.mount_options }}"
+  tags: [nfs_csi]

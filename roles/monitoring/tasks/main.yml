@@ -1,0 +1,10 @@
+---
+- name: Installer la pile de supervision
+  ansible.builtin.include_tasks: install.yml
+  when: monitoring_state == 'present'
+  tags: [monitoring]
+
+- name: Désinstaller la pile de supervision
+  ansible.builtin.include_tasks: uninstall.yml
+  when: monitoring_state == 'absent'
+  tags: [monitoring]

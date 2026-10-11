@@ -1,8 +1,11 @@
-# Secrets locaux
-.vault_pass*
+# Secrets et fichiers locaux
+.vault_pass
+.vault_pass.*
+*.retry
+ansible.log
 
-# Archives de collection générées par « ansible-galaxy collection build »
-*.tar.gz
+# Artefacts générés par les playbooks (kubeconfig utilisateurs, clés, certificats)
+artifacts/
 
 # Environnements Python locaux
 .venv/

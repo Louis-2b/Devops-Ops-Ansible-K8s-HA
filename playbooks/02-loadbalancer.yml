@@ -1,0 +1,13 @@
+---
+# Étape 2 - load balancer haute disponibilité de l'API Kubernetes :
+# HAProxy + cluster Pacemaker/Corosync + IP virtuelle (VIP).
+- name: HAProxy, Pacemaker et IP virtuelle
+  hosts: haproxy_srv
+  become: true
+  roles:
+    - role: haproxy
+      tags: [haproxy]
+    - role: pacemaker_cluster
+      tags: [pacemaker]
+    - role: loadbalancer_vip
+      tags: [loadbalancer_vip]

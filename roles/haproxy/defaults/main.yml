@@ -1,0 +1,23 @@
+---
+haproxy_bind_port: "{{ k8s_control_plane_port }}"
+haproxy_maxconn: 4096
+haproxy_balance: roundrobin
+# Délais élevés : kubectl logs -f / exec / watch sont des connexions longues.
+haproxy_timeout_connect: 5s
+haproxy_timeout_client: 1h
+haproxy_timeout_server: 1h
+haproxy_health_check_path: /livez
+haproxy_check_interval: 3s
+haproxy_check_fall: 3
+haproxy_check_rise: 2
+
+# Serveurs du backend : tous les hôtes du groupe control_plane.
+haproxy_backend_group: control_plane
+
+# Si vrai (défaut), le service systemd est piloté par Pacemaker : il est donc
+# désactivé au démarrage et jamais démarré/arrêté directement par ce rôle.
+haproxy_managed_by_pacemaker: true
+
+# Page de statistiques (désactivée par défaut).
+haproxy_stats_enabled: false
+haproxy_stats_port: 8404

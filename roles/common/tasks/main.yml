@@ -1,0 +1,77 @@
+---
+- name: Définir le nom d'hôte
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+  when: common_set_hostname | bool
+  tags: [common, hostname]
+
+- name: Mettre à jour tous les paquets
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest   # noqa: package-latest
+    update_cache: true
+  when: common_upgrade_packages | bool
+  tags: [common, upgrade]
+
+- name: Installer les paquets de base
+  ansible.builtin.dnf:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+  tags: [common, packages]
+
+- name: Renseigner /etc/hosts avec les nœuds du cluster
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED - cluster Kubernetes HA"
+    mode: "0644"
+    block: |
+      {{ k8s_control_plane_vip }} {{ k8s_api_hostname }}
+      {% for host in groups['all'] %}
+      {{ hostvars[host].ansible_host }} {{ host }}
+      {% endfor %}
+  tags: [common, hosts]
+
+- name: Fuseau horaire et horloge matérielle en UTC
+  community.general.timezone:
+    name: "{{ common_timezone | default(omit, true) }}"
+    hwclock: UTC
+  tags: [common, time]
+
+- name: Activer et démarrer chronyd (synchronisation NTP)
+  ansible.builtin.systemd:
+    name: chronyd
+    enabled: true
+    state: started
+  tags: [common, time]
+
+- name: Durcir la configuration SSH (fragment prioritaire)
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-ansible-hardening.conf
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      # Géré par Ansible (rôle common)
+      PasswordAuthentication {{ 'yes' if common_ssh_password_authentication | bool else 'no' }}
+      KbdInteractiveAuthentication {{ 'yes' if common_ssh_password_authentication | bool else 'no' }}
+      PermitRootLogin {{ 'yes' if common_ssh_permit_root_login | bool else 'no' }}
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart sshd
+  tags: [common, ssh]
+
+- name: Vérifier si un redémarrage est nécessaire
+  ansible.builtin.command: dnf needs-restarting -r
+  register: common_needs_restarting
+  changed_when: false
+  failed_when: common_needs_restarting.rc not in [0, 1]
+  when: common_reboot_if_required | bool
+  tags: [common, reboot]
+
+- name: Redémarrer le nœud si nécessaire
+  ansible.builtin.reboot:
+    reboot_timeout: "{{ common_reboot_timeout }}"
+  when:
+    - common_reboot_if_required | bool
+    - common_needs_restarting.rc == 1
+  tags: [common, reboot]

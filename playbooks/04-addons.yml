@@ -1,0 +1,46 @@
+---
+# Étape 4 - addons du cluster. Chaque addon s'active/désactive dans group_vars/all/main.yml
+# (metallb_enabled, ingress_nginx_enabled…) ou se cible avec --tags.
+#
+# Désinstaller la supervision :
+#   ansible-playbook playbooks/04-addons.yml --tags monitoring -e monitoring_state=absent
+- name: Désigner le nœud d'amorçage du cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Ajouter le premier control plane au groupe k8s_bootstrap
+      ansible.builtin.add_host:
+        name: "{{ groups['control_plane'] | sort | first }}"
+        groups: k8s_bootstrap
+      changed_when: false
+      tags: [always]
+
+- name: Installer les addons Kubernetes
+  hosts: k8s_bootstrap
+  become: true
+  vars:
+    ansible_python_interpreter: "{{ k8s_tooling_venv }}/bin/python"
+  roles:
+    - role: metallb
+      when: metallb_enabled | bool
+      tags: [metallb]
+    - role: nfs_csi
+      when: nfs_csi_enabled | bool
+      tags: [nfs_csi]
+    - role: ingress_nginx
+      when: ingress_nginx_enabled | bool
+      tags: [ingress_nginx]
+    - role: metrics_server
+      when: metrics_server_enabled | bool
+      tags: [metrics_server]
+    - role: monitoring
+      when: monitoring_enabled | bool or monitoring_state | default('present') == 'absent'
+      tags: [monitoring]
+    - role: k8s_external_services
+      when: k8s_external_services_enabled | bool
+      tags: [k8s_external_services]
+    - role: k8s_rbac
+      when: k8s_rbac_enabled | bool
+      tags: [k8s_rbac]
