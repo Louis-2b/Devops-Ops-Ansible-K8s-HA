@@ -1,6 +1,0 @@
----
-
-kubeadm_init_config_path: /etc/kubernetes/kubeadm-config.yaml
-kubeadm_init_cri_socket: unix:///run/containerd/containerd.sock
-# Compte Linux qui recevra ~/.kube/config (administration depuis le premier control plane).
-kubeadm_init_kubeconfig_user: "{{ ansible_user }}"

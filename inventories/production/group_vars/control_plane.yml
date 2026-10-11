@@ -1,8 +1,0 @@
----
-k8s_install_kubectl: true
-firewall_ports: >-
-  {{ firewall_ports_k8s_common
-     + firewall_ports_control_plane
-     + (firewall_ports_control_plane_metrics if k8s_expose_control_plane_metrics | bool else []) }}
-firewall_trusted_sources: "{{ firewall_trusted_sources_k8s }}"
-firewall_services: []

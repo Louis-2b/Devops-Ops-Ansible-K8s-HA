@@ -1,7 +1,0 @@
----
-# Cloud (entrée de clouds.yaml) ; vide = variables d'environnement OS_*
-openstack_vip_cloud: ""
-openstack_vip_network: ""        # nom ou ID du réseau portant les VM (obligatoire)
-openstack_vip_subnet: ""         # nom ou ID du sous-réseau contenant l'IP virtuelle (obligatoire)
-openstack_vip_address: "{{ k8s_control_plane_vip }}"
-openstack_vip_port_name: k8s-api-vip

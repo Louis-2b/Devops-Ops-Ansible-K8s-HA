@@ -1,7 +1,0 @@
----
-# Arguments « nom addr=IP » pour pcs, aplatis : [haproxy1, addr=10.0.0.1, haproxy2, addr=10.0.0.2]
-pacemaker_node_args: >-
-  {{ groups['haproxy_srv']
-     | zip(groups['haproxy_srv'] | map('extract', hostvars, 'ansible_host') | map('regex_replace', '^', 'addr='))
-     | map('list')
-     | flatten }}
