@@ -1,3 +1,0 @@
----
-container_runtime_repo_uri: https://download.docker.com/linux/debian
-container_runtime_repo_gpgkey: https://download.docker.com/linux/debian/gpg

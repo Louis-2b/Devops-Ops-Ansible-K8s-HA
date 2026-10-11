@@ -1,10 +1,2 @@
-# Secrets locaux
-.vault_pass*
-
-# Archives de collection générées par « ansible-galaxy collection build »
-*.tar.gz
-
-# Environnements Python locaux
-.venv/
-venv/
-__pycache__/
+ansible.cfg
+inventory

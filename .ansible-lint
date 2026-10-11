@@ -1,8 +1,0 @@
----
-profile: production
-exclude_paths:
-  - .github/
-skip_list:
-  # Les variables « kubernetes_* » sont volontairement partagées entre plusieurs rôles
-  # (version, endpoint API, CIDR) : elles ne portent donc pas le préfixe d'un seul rôle.
-  - var-naming[no-role-prefix]

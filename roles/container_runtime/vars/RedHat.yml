@@ -1,3 +1,0 @@
----
-container_runtime_repo_baseurl: "https://download.docker.com/linux/rhel/{{ ansible_facts['distribution_major_version'] }}/$basearch/stable"
-container_runtime_repo_gpgkey: https://download.docker.com/linux/rhel/gpg
