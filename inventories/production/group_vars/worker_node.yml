@@ -1,0 +1,5 @@
+---
+k8s_install_kubectl: false
+firewall_ports: "{{ firewall_ports_k8s_common }}"
+firewall_trusted_sources: "{{ firewall_trusted_sources_k8s }}"
+firewall_services: []

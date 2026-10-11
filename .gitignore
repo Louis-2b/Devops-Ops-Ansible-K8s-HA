@@ -1,2 +1,13 @@
-ansible.cfg
-inventory
+# Secrets et fichiers locaux
+.vault_pass
+.vault_pass.*
+*.retry
+ansible.log
+
+# Artefacts générés par les playbooks (kubeconfig utilisateurs, clés, certificats)
+artifacts/
+
+# Environnements Python locaux
+.venv/
+venv/
+__pycache__/
