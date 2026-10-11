@@ -1,0 +1,4 @@
+---
+# ansible-core 2.18 est la première version dont les modules s'exécutent sur Python 3.13,
+# l'interpréteur par défaut de Debian 13.
+requires_ansible: ">=2.18"
