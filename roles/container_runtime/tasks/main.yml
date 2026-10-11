@@ -1,0 +1,105 @@
+---
+- name: Vérifier que le système est pris en charge
+  ansible.builtin.assert:
+    that: (ansible_facts['distribution'] ~ ' ' ~ ansible_facts['distribution_major_version']) in ['Rocky 10', 'Debian 13']
+    fail_msg: >-
+      Système non pris en charge : {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+      (Rocky Linux 10 ou Debian 13 uniquement).
+    quiet: true
+
+- name: Charger les variables propres à la famille de systèmes
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+
+# containerd.io (Docker CE) fournit containerd 2.x, requis par Kubernetes 1.36 sur les deux systèmes.
+- name: Installer containerd sur Rocky Linux
+  when: ansible_facts['os_family'] == 'RedHat'
+  block:
+    - name: Ajouter le dépôt Docker CE
+      ansible.builtin.yum_repository:
+        name: docker-ce-stable
+        description: Docker CE Stable - $basearch
+        baseurl: "{{ container_runtime_repo_baseurl }}"
+        gpgcheck: true
+        gpgkey: "{{ container_runtime_repo_gpgkey }}"
+        enabled: true
+
+    - name: Installer containerd.io
+      ansible.builtin.dnf:
+        name: "containerd.io{{ '-' ~ container_runtime_version if container_runtime_version | length > 0 else '' }}"
+        state: present
+        update_cache: true
+      notify: Restart containerd
+
+- name: Installer containerd sur Debian
+  when: ansible_facts['os_family'] == 'Debian'
+  block:
+    - name: Installer les prérequis du module deb822_repository
+      ansible.builtin.apt:
+        name:
+          - python3-debian
+          - ca-certificates
+        state: present
+        update_cache: true
+
+    - name: Ajouter le dépôt Docker CE
+      ansible.builtin.deb822_repository:
+        name: docker
+        types: deb
+        uris: "{{ container_runtime_repo_uri }}"
+        suites: "{{ ansible_facts['distribution_release'] }}"
+        components: stable
+        signed_by: "{{ container_runtime_repo_gpgkey }}"
+        state: present
+        enabled: true
+
+    - name: Installer containerd.io
+      ansible.builtin.apt:
+        name: "containerd.io{{ '=' ~ container_runtime_version ~ '*' if container_runtime_version | length > 0 else '' }}"
+        state: present
+        update_cache: true
+      notify: Restart containerd
+
+- name: Relever la version de containerd installée
+  ansible.builtin.command: containerd --version
+  register: container_runtime_installed
+  changed_when: false
+  check_mode: false
+
+- name: Vérifier que containerd est en version 2 ou supérieure
+  ansible.builtin.assert:
+    that: container_runtime_installed.stdout is regex(' v([2-9]|[1-9][0-9])\.')
+    fail_msg: >-
+      {{ container_runtime_installed.stdout }} : Kubernetes 1.36 exige containerd 2.x.
+      Renseignez container_runtime_version avec une version 2.x disponible dans le dépôt.
+    quiet: true
+
+- name: Écrire la configuration de containerd (CRI, cgroups systemd)
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: /etc/containerd/config.toml
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart containerd
+
+- name: Configurer crictl
+  ansible.builtin.copy:
+    dest: /etc/crictl.yaml
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      runtime-endpoint: {{ container_runtime_socket }}
+      image-endpoint: {{ container_runtime_socket }}
+
+- name: Activer et démarrer containerd
+  ansible.builtin.systemd:
+    name: containerd
+    enabled: true
+    state: started
+    daemon_reload: true
+
+# Le runtime doit être à jour avant que kubeadm ne l'utilise.
+- name: Appliquer immédiatement les changements de configuration
+  ansible.builtin.meta: flush_handlers

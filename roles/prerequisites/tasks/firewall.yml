@@ -1,0 +1,36 @@
+---
+- name: Installer firewalld
+  ansible.builtin.package:
+    name: firewalld
+    state: present
+
+- name: Activer et démarrer firewalld
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Ouvrir les ports communs à tous les nœuds
+  ansible.posix.firewalld:
+    port: "{{ prerequisites_port }}"
+    zone: "{{ prerequisites_firewall_zone | default(omit, true) }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ prerequisites_firewall_ports }}"
+  loop_control:
+    loop_var: prerequisites_port
+
+# Le trafic des pods et des services est traité comme interne au cluster.
+- name: Placer les réseaux des pods et des services dans la zone trusted
+  ansible.posix.firewalld:
+    source: "{{ prerequisites_source }}"
+    zone: trusted
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "{{ kubernetes_pod_cidr }}"
+    - "{{ kubernetes_service_cidr }}"
+  loop_control:
+    loop_var: prerequisites_source

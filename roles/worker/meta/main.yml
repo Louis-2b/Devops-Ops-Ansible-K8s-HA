@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: Louis-2b
+  description: Jonction des workers à un cluster Kubernetes existant (kubeadm join).
+  min_ansible_version: "2.18"
+  license: UNLICENSED
+  platforms:
+    - name: EL
+      versions: ["10"]
+    - name: Debian
+      versions: [trixie]
+dependencies:
+  - role: louis2b.kubernetes.prerequisites
+  - role: louis2b.kubernetes.container_runtime
+  - role: louis2b.kubernetes.packages

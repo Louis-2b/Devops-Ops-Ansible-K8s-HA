@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: Louis-2b
+  description: Initialisation du premier control plane (kubeadm init) et jonction des control planes suivants.
+  min_ansible_version: "2.18"
+  license: UNLICENSED
+  platforms:
+    - name: EL
+      versions: ["10"]
+    - name: Debian
+      versions: [trixie]
+dependencies:
+  - role: louis2b.kubernetes.prerequisites
+  - role: louis2b.kubernetes.container_runtime
+  - role: louis2b.kubernetes.packages

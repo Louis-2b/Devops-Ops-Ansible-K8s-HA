@@ -1,0 +1,32 @@
+---
+# --- Réseau du cluster (valeurs de référence, partagées avec control_plane et cni) -----------
+kubernetes_pod_cidr: 10.244.0.0/16
+kubernetes_service_cidr: 10.96.0.0/12
+
+# --- Système -------------------------------------------------------------------------------
+# Synchronisation horaire (chrony) : indispensable, les certificats Kubernetes dépendent de l'heure.
+prerequisites_time_sync_manage: true
+# SELinux (Rocky uniquement) : permissive | enforcing | disabled. Debian n'utilise pas SELinux.
+prerequisites_selinux_state: permissive
+
+# --- Noyau ---------------------------------------------------------------------------------
+prerequisites_kernel_modules:
+  - overlay
+  - br_netfilter
+prerequisites_sysctl:
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  net.ipv4.ip_forward: 1
+  fs.inotify.max_user_instances: 8192
+  fs.inotify.max_user_watches: 524288
+
+# --- Pare-feu (firewalld) ------------------------------------------------------------------
+# Par défaut géré sur Rocky (firewalld y est actif) et laissé intact sur Debian (aucun pare-feu
+# par défaut). Mettre true sur Debian pour installer et configurer firewalld.
+prerequisites_firewall_manage: "{{ ansible_facts['os_family'] == 'RedHat' }}"
+# Zone firewalld ; vide = zone par défaut.
+prerequisites_firewall_zone: ""
+# Ports ouverts sur TOUS les nœuds : kubelet et VXLAN de Flannel.
+prerequisites_firewall_ports:
+  - 10250/tcp
+  - 8472/udp

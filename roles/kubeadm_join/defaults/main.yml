@@ -1,5 +1,0 @@
----
-
-kubeadm_join_cri_socket: unix:///run/containerd/containerd.sock
-kubeadm_join_config_path: /etc/kubernetes/kubeadm-join.yaml
-kubeadm_join_token_ttl: 30m

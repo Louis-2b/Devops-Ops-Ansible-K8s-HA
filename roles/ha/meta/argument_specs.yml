@@ -1,0 +1,94 @@
+---
+argument_specs:
+  main:
+    short_description: Endpoint API hautement disponible (HAProxy + Keepalived).
+    description:
+      - Installe HAProxy (répartition TCP vers les control planes, sonde /livez) et Keepalived (VIP en VRRP unicast) sur au moins deux hôtes dédiés ou
+        co-localisés avec les control planes.
+      - 'Rôle facultatif : inutile avec un équilibreur externe ou un nom DNS qui répartit déjà sur les control planes.'
+    options:
+      ha_vip_address:
+        type: str
+        description: Adresse IP virtuelle de l'API Kubernetes, libre dans le sous-réseau des load balancers.
+        required: true
+      ha_peers_group:
+        type: str
+        description: Groupe d'inventaire des hôtes qui reçoivent ce rôle (au moins 2).
+        default: load_balancer
+      ha_backend_group:
+        type: str
+        description: Groupe d'inventaire des control planes (backends HAProxy).
+        default: '{{ kubernetes_control_plane_group | default(''control_plane'') }}'
+      ha_bind_port:
+        type: int
+        description: Port d'écoute de HAProxy sur la VIP (port de kubernetes_api_endpoint). Doit différer de ha_backend_port si HAProxy est sur les control
+          planes.
+        default: 6443
+      ha_backend_port:
+        type: int
+        description: Port de kube-apiserver sur les control planes.
+        default: 6443
+      ha_vip_prefix:
+        type: int
+        description: Longueur de préfixe de la VIP.
+        default: 32
+      ha_vip_interface:
+        type: str
+        description: Interface portant la VIP.
+        default: '{{ ansible_facts[''default_ipv4''][''interface''] }}'
+      ha_node_ip:
+        type: str
+        description: Adresse de ce nœud dans le groupe VRRP.
+        default: '{{ kubernetes_node_ip | default(ansible_facts[''default_ipv4''][''address'']) }}'
+      ha_virtual_router_id:
+        type: int
+        description: Identifiant VRRP (1-255), unique par segment réseau.
+        default: 51
+      ha_priority:
+        type: int
+        description: 'Priorité VRRP ; le plus haut détient la VIP. Par défaut : ordre alphabétique des hôtes.'
+      ha_auth_pass:
+        type: str
+        description: 'Mot de passe VRRP (8 caractères significatifs) ; vide = sans authentification. Sensible : Ansible Vault.'
+        default: ''
+        no_log: true
+      ha_maxconn:
+        type: int
+        description: Connexions maximales de HAProxy.
+        default: 4096
+      ha_balance:
+        type: str
+        description: Algorithme de répartition HAProxy.
+        default: roundrobin
+      ha_timeout_connect:
+        type: str
+        description: Délai de connexion.
+        default: 5s
+      ha_timeout_client:
+        type: str
+        description: Délai d'inactivité côté client.
+        default: 1h
+      ha_timeout_server:
+        type: str
+        description: Délai d'inactivité côté serveur.
+        default: 1h
+      ha_check_interval:
+        type: str
+        description: Intervalle des sondes de santé.
+        default: 3s
+      ha_check_fall:
+        type: int
+        description: Échecs consécutifs avant de retirer un control plane.
+        default: 3
+      ha_check_rise:
+        type: int
+        description: Succès consécutifs avant de le réintégrer.
+        default: 2
+      ha_firewall_manage:
+        type: bool
+        description: Gérer firewalld (port de l'API et VRRP). Par défaut true sur Rocky.
+        default: '{{ ansible_facts[''os_family''] == ''RedHat'' }}'
+      ha_firewall_zone:
+        type: str
+        description: Zone firewalld ; vide = zone par défaut.
+        default: ''

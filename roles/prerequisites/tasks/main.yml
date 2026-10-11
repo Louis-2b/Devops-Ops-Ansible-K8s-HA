@@ -1,0 +1,74 @@
+---
+- name: Vérifier que le système est pris en charge
+  ansible.builtin.assert:
+    that: (ansible_facts['distribution'] ~ ' ' ~ ansible_facts['distribution_major_version']) in ['Rocky 10', 'Debian 13']
+    fail_msg: >-
+      Système non pris en charge : {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+      (Rocky Linux 10 ou Debian 13 uniquement).
+    quiet: true
+
+- name: Charger les variables propres à la famille de systèmes
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+
+- name: Installer les paquets prérequis
+  ansible.builtin.package:
+    name: "{{ prerequisites_packages }}"
+    state: present
+
+- name: Activer la synchronisation horaire
+  ansible.builtin.service:
+    name: "{{ prerequisites_chrony_service }}"
+    state: started
+    enabled: true
+  when: prerequisites_time_sync_manage | bool
+
+- name: Lister les swaps actifs
+  ansible.builtin.command: swapon --show=NAME --noheadings
+  register: prerequisites_swap_active
+  changed_when: false
+  check_mode: false
+
+- name: Désactiver le swap immédiatement
+  ansible.builtin.command: swapoff -a
+  when: prerequisites_swap_active.stdout | trim | length > 0
+  changed_when: true
+
+- name: Retirer le swap de /etc/fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#\n]\S*[ \t]+\S+[ \t]+swap[ \t].*)$'
+    replace: '# \1'
+    mode: "0644"
+
+- name: Passer SELinux dans l'état demandé
+  ansible.posix.selinux:
+    policy: targeted
+    state: "{{ prerequisites_selinux_state }}"
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - ansible_facts['selinux']['status'] | default('disabled') == 'enabled'
+
+- name: Charger les modules noyau et les rendre persistants
+  community.general.modprobe:
+    name: "{{ prerequisites_module }}"
+    state: present
+    persistent: present
+  loop: "{{ prerequisites_kernel_modules }}"
+  loop_control:
+    loop_var: prerequisites_module
+
+- name: Appliquer les paramètres sysctl de Kubernetes
+  ansible.posix.sysctl:
+    name: "{{ prerequisites_param.key }}"
+    value: "{{ prerequisites_param.value }}"
+    sysctl_file: /etc/sysctl.d/90-kubernetes.conf
+    sysctl_set: true
+    reload: true
+    state: present
+  loop: "{{ prerequisites_sysctl | dict2items }}"
+  loop_control:
+    loop_var: prerequisites_param
+
+- name: Configurer le pare-feu
+  ansible.builtin.include_tasks: firewall.yml
+  when: prerequisites_firewall_manage | bool

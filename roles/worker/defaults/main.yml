@@ -1,0 +1,18 @@
+---
+# --- À renseigner ------------------------------------------------------------------------------
+# Adresse stable de l'API Kubernetes « hôte:port » (identique à celle du rôle control_plane).
+# kubernetes_api_endpoint: 192.0.2.10:6443
+
+# --- Cluster ------------------------------------------------------------------------------------
+# Mêmes valeurs que dans le rôle control_plane (à définir une seule fois dans group_vars/all).
+kubernetes_control_plane_group: control_plane
+kubernetes_primary_control_plane: "{{ groups[kubernetes_control_plane_group] | sort | first }}"
+# Adresse du nœud dans le cluster ; définir kubernetes_node_ip par hôte pour la remplacer.
+worker_node_ip: "{{ kubernetes_node_ip | default(ansible_facts['default_ipv4']['address']) }}"
+# Durée de vie du jeton de jonction (créé à la demande, jamais conservé).
+worker_token_ttl: 30m
+
+# --- Pare-feu -----------------------------------------------------------------------------------
+# Ports ouverts sur les workers (en plus de ceux de prerequisites_firewall_ports) : plage des NodePort.
+worker_firewall_ports:
+  - 30000-32767/tcp

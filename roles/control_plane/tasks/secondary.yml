@@ -1,0 +1,114 @@
+---
+# Exécuté par tous les hôtes du play (les tâches « run_once » doivent voir la même situation),
+# mais seuls les control planes qui n'ont pas encore rejoint le cluster font quelque chose.
+# Les tâches s'exécutent de façon synchronisée : le play doit utiliser la stratégie « linear »
+# (celle par défaut).
+- name: Attendre que l'API du premier control plane réponde
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /readyz
+  delegate_to: "{{ kubernetes_primary_control_plane }}"
+  run_once: true  # noqa: run-once[task]
+  register: control_plane_primary_ready
+  until: control_plane_primary_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Lister les control planes déjà membres du cluster
+  ansible.builtin.command: >-
+    kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes
+    -l node-role.kubernetes.io/control-plane -o name
+  delegate_to: "{{ kubernetes_primary_control_plane }}"
+  run_once: true  # noqa: run-once[task]
+  register: control_plane_members
+  changed_when: false
+
+- name: Déterminer les control planes à joindre
+  ansible.builtin.set_fact:
+    control_plane_pending: >-
+      {{ ansible_play_hosts
+         | intersect(groups[kubernetes_control_plane_group])
+         | reject('equalto', kubernetes_primary_control_plane)
+         | reject('in', control_plane_members.stdout_lines | map('regex_replace', '^node/', '') | list)
+         | list }}
+
+- name: Jonction des control planes
+  when: control_plane_pending | length > 0
+  block:
+    # Une seule clé de certificat pour tous les nœuds : « upload-certs » remplace le secret
+    # kubeadm-certs, une clé par nœud ferait échouer les jonctions déjà préparées.
+    - name: Générer la clé de chiffrement des certificats
+      ansible.builtin.command: kubeadm certs certificate-key
+      delegate_to: "{{ kubernetes_primary_control_plane }}"
+      run_once: true  # noqa: run-once[task]
+      register: control_plane_certificate_key
+      changed_when: false
+      no_log: true
+
+    - name: Téléverser les certificats du control plane (valables 2 h)
+      ansible.builtin.command: kubeadm init phase upload-certs --upload-certs --certificate-key {{ control_plane_certificate_key.stdout }}
+      delegate_to: "{{ kubernetes_primary_control_plane }}"
+      run_once: true  # noqa: run-once[task]
+      changed_when: true
+      no_log: true
+
+    - name: Joindre ce nœud
+      when: inventory_hostname in control_plane_pending
+      block:
+        - name: Vérifier qu'aucune jonction partielle n'est en cours sur ce nœud
+          ansible.builtin.stat:
+            path: /etc/kubernetes/kubelet.conf
+          register: control_plane_kubelet_conf
+
+        - name: Refuser de relancer une jonction interrompue
+          ansible.builtin.fail:
+            msg: >-
+              /etc/kubernetes/kubelet.conf existe mais {{ inventory_hostname }} n'est pas membre du cluster :
+              jonction interrompue. Exécutez « kubeadm reset -f » sur ce nœud, retirez son membre etcd
+              s'il a été ajouté (etcdctl member remove), supprimez l'objet Node, puis relancez le rôle.
+          when: control_plane_kubelet_conf.stat.exists
+
+        - name: Créer un jeton de jonction
+          ansible.builtin.command: kubeadm token create --ttl {{ control_plane_token_ttl }} --print-join-command
+          delegate_to: "{{ kubernetes_primary_control_plane }}"
+          register: control_plane_join_command
+          changed_when: true
+          no_log: true
+
+        - name: Vérifier que l'endpoint de l'API est joignable
+          ansible.builtin.wait_for:
+            host: "{{ kubernetes_api_endpoint.rsplit(':', 1)[0] }}"
+            port: "{{ kubernetes_api_endpoint.rsplit(':', 1)[1] }}"
+            timeout: 60
+
+        - name: Déployer la configuration de jonction
+          ansible.builtin.template:
+            src: kubeadm-join.yaml.j2
+            dest: /etc/kubernetes/kubeadm-join.yaml
+            owner: root
+            group: root
+            mode: "0600"
+          no_log: true
+
+        # Un seul nœud à la fois : chaque ajout de membre etcd doit se terminer avant le suivant.
+        - name: Exécuter kubeadm join
+          ansible.builtin.command: kubeadm join --config /etc/kubernetes/kubeadm-join.yaml
+          args:
+            creates: /etc/kubernetes/kubelet.conf
+          throttle: 1
+          changed_when: true
+
+        - name: Attendre que le nœud soit enregistré comme control plane
+          ansible.builtin.command: >-
+            kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes
+            -l node-role.kubernetes.io/control-plane -o name
+          delegate_to: "{{ kubernetes_primary_control_plane }}"
+          register: control_plane_registered
+          until: "('node/' ~ inventory_hostname) in control_plane_registered.stdout_lines"
+          retries: 30
+          delay: 10
+          changed_when: false
+      always:
+        - name: Supprimer la configuration de jonction (elle contient le jeton)
+          ansible.builtin.file:
+            path: /etc/kubernetes/kubeadm-join.yaml
+            state: absent

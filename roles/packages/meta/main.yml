@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: Louis-2b
+  description: Dépôt Kubernetes (pkgs.k8s.io) et installation de kubelet, kubeadm et kubectl en version épinglée.
+  min_ansible_version: "2.18"
+  license: UNLICENSED
+  platforms:
+    - name: EL
+      versions: ["10"]
+    - name: Debian
+      versions: [trixie]
+dependencies: []

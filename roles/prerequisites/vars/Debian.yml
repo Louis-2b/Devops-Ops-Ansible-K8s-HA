@@ -1,0 +1,11 @@
+---
+prerequisites_packages:
+  - conntrack
+  - iproute2
+  - iptables
+  - socat
+  - ethtool
+  - curl
+  - ca-certificates
+  - chrony
+prerequisites_chrony_service: chrony

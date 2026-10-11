@@ -1,9 +1,0 @@
----
-metallb_version: "v0.16.1"
-metallb_manifest_url: "https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/config/manifests/metallb-native.yaml"
-metallb_manifest_dir: /etc/kubernetes/addons
-metallb_kubeconfig: /etc/kubernetes/admin.conf
-metallb_ip_range: 192.168.222.100-192.168.222.150
-metallb_pool_name: production
-metallb_l2_advertisement_name: arpsetup
-metallb_wait_timeout: 300

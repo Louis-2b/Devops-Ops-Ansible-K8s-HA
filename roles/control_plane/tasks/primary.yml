@@ -1,0 +1,76 @@
+---
+- name: Vérifier si un cluster existe déjà sur ce nœud
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: control_plane_admin_conf
+
+# admin.conf est écrit au début de « kubeadm init » : sa présence ne prouve pas que l'initialisation
+# est terminée. Le cluster est considéré prêt quand la ConfigMap kubeadm-config est lisible.
+- name: Vérifier qu'un cluster existant répond
+  when: control_plane_admin_conf.stat.exists
+  block:
+    - name: Lire la ConfigMap kubeadm-config
+      ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf -n kube-system get configmap kubeadm-config -o name
+      register: control_plane_existing
+      until: control_plane_existing.rc == 0
+      retries: 18
+      delay: 10
+      changed_when: false
+  rescue:
+    - name: Signaler une initialisation incomplète
+      ansible.builtin.fail:
+        msg: >-
+          /etc/kubernetes/admin.conf existe mais le cluster ne répond pas (initialisation interrompue ou
+          API arrêtée). Si l'initialisation est incomplète, exécutez « kubeadm reset -f » sur ce nœud
+          puis relancez le rôle. Rien n'a été modifié.
+
+- name: Déployer la configuration kubeadm
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: /etc/kubernetes/kubeadm-config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Initialiser le cluster
+  when: not control_plane_admin_conf.stat.exists
+  block:
+    - name: Vérifier que l'endpoint de l'API est joignable
+      ansible.builtin.wait_for:
+        host: "{{ kubernetes_api_endpoint.rsplit(':', 1)[0] }}"
+        port: "{{ kubernetes_api_endpoint.rsplit(':', 1)[1] }}"
+        timeout: 60
+
+    # Garde-fou : si le premier nœud par ordre alphabétique change (nouveau control plane dont le
+    # nom précède les autres), ne jamais créer un second cluster à côté de celui qui répond déjà.
+    - name: Vérifier qu'aucun cluster ne répond déjà sur l'endpoint
+      ansible.builtin.uri:
+        url: "https://{{ kubernetes_api_endpoint }}/livez"
+        validate_certs: false
+        status_code: [200, 401, 403, 404, 500, 503]
+        timeout: 10
+      register: control_plane_endpoint_probe
+      failed_when: false
+
+    - name: Refuser d'initialiser un second cluster
+      ansible.builtin.fail:
+        msg: >-
+          Un serveur répond déjà (HTTP {{ control_plane_endpoint_probe.status }}) sur
+          https://{{ kubernetes_api_endpoint }}/livez : {{ inventory_hostname }} ne doit pas exécuter kubeadm init.
+          Si ce nœud n'est pas le premier control plane, renseignez kubernetes_primary_control_plane
+          avec le nom du nœud déjà initialisé.
+      when: control_plane_endpoint_probe.status | default(-1) == 200
+
+    - name: Exécuter kubeadm init
+      ansible.builtin.command: kubeadm init --config /etc/kubernetes/kubeadm-config.yaml
+      args:
+        creates: /etc/kubernetes/admin.conf
+      changed_when: true
+
+- name: Attendre que l'API réponde via l'endpoint
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /readyz
+  register: control_plane_readyz
+  until: control_plane_readyz.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false

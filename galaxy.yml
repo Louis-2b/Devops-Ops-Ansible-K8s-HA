@@ -1,0 +1,24 @@
+---
+namespace: louis2b
+name: kubernetes
+version: 1.0.0
+readme: README.md
+authors:
+  - Louis-2b
+description: Rôles Ansible pour déployer un cluster Kubernetes (kubeadm) hautement disponible sur Rocky Linux 10 et Debian 13.
+repository: https://github.com/Louis-2b/Devops-Ops-Ansible-K8s-HA
+issues: https://github.com/Louis-2b/Devops-Ops-Ansible-K8s-HA/issues
+tags:
+  - kubernetes
+  - kubeadm
+  - containerd
+  - haproxy
+  - keepalived
+dependencies:
+  ansible.posix: ">=1.5.4"
+  community.general: ">=9.0.0"
+build_ignore:
+  - .github
+  - .gitignore
+  - .ansible-lint
+  - .yamllint

@@ -1,0 +1,6 @@
+---
+# Version exacte de kubelet, kubeadm et kubectl (x.y.z). Le dépôt pkgs.k8s.io est sélectionné
+# d'après x.y. Cette version est aussi celle du control plane créé par kubeadm.
+kubernetes_version: "1.36.5"
+# Installer kubectl (inutile sur les workers si vous administrez le cluster depuis ailleurs).
+packages_kubectl: true

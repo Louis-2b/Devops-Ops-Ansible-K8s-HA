@@ -1,3 +1,4 @@
+---
 name: lint
 
 on:
@@ -17,17 +18,13 @@ jobs:
       - name: Installer Ansible et les linters
         run: pip install ansible-core ansible-lint yamllint
 
-      - name: Installer les collections
-        run: ansible-galaxy collection install -r requirements.yml
+      - name: Construire et installer la collection (dépendances comprises)
+        run: |
+          ansible-galaxy collection build --output-path /tmp/build
+          ansible-galaxy collection install /tmp/build/louis2b-kubernetes-*.tar.gz
 
       - name: yamllint
         run: yamllint .
 
       - name: ansible-lint
         run: ansible-lint
-
-      - name: Vérification de syntaxe des playbooks
-        run: |
-          for pb in playbooks/*.yml; do
-            ansible-playbook --syntax-check "$pb"
-          done

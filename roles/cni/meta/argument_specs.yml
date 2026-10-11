@@ -1,0 +1,32 @@
+---
+argument_specs:
+  main:
+    short_description: Plugin réseau Flannel.
+    description:
+      - Télécharge le manifeste Flannel de la version épinglée, aligne son réseau sur le CIDR des pods, l'applique avec kubectl et attend le déploiement.
+      - À appliquer une fois sur un control plane initialisé (le premier suffit).
+    options:
+      kubernetes_pod_cidr:
+        type: str
+        description: Réseau des pods ; doit être identique au podSubnet du cluster.
+        default: 10.244.0.0/16
+      cni_flannel_version:
+        type: str
+        description: Version de Flannel.
+        default: v0.28.10
+      cni_flannel_manifest_url:
+        type: str
+        description: URL du manifeste (surchargeable pour un miroir interne).
+        default: https://github.com/flannel-io/flannel/releases/download/{{ cni_flannel_version }}/kube-flannel.yml
+      cni_flannel_manifest_checksum:
+        type: str
+        description: Empreinte du manifeste (ex. sha256:…) ; vide = non vérifié.
+        default: ''
+      cni_manifest_dir:
+        type: str
+        description: Répertoire de stockage du manifeste sur le nœud.
+        default: /etc/kubernetes/addons
+      cni_rollout_timeout:
+        type: str
+        description: Délai d'attente du déploiement.
+        default: 300s

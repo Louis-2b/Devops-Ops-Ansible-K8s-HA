@@ -1,0 +1,40 @@
+# {{ ansible_managed }}
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: {{ control_plane_node_ip }}
+  bindPort: {{ control_plane_bind_port }}
+nodeRegistration:
+  name: {{ inventory_hostname }}
+  criSocket: {{ container_runtime_socket }}
+  kubeletExtraArgs:
+    - name: node-ip
+      value: "{{ control_plane_node_ip }}"
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+clusterName: {{ control_plane_cluster_name }}
+kubernetesVersion: v{{ kubernetes_version }}
+controlPlaneEndpoint: "{{ kubernetes_api_endpoint }}"
+networking:
+  podSubnet: {{ kubernetes_pod_cidr }}
+  serviceSubnet: {{ kubernetes_service_cidr }}
+  dnsDomain: {{ control_plane_dns_domain }}
+apiServer:
+  certSANs:
+    - "{{ kubernetes_api_endpoint.rsplit(':', 1)[0] }}"
+{% for host in groups[kubernetes_control_plane_group] | sort %}
+    - "{{ host }}"
+    - "{{ hostvars[host].kubernetes_node_ip | default(hostvars[host].ansible_host | default(host)) }}"
+{% endfor %}
+{% for san in control_plane_extra_sans %}
+    - "{{ san }}"
+{% endfor %}
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+mode: {{ control_plane_kube_proxy_mode }}

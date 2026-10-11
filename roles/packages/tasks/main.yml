@@ -1,0 +1,82 @@
+---
+- name: Vérifier que le système est pris en charge
+  ansible.builtin.assert:
+    that: (ansible_facts['distribution'] ~ ' ' ~ ansible_facts['distribution_major_version']) in ['Rocky 10', 'Debian 13']
+    fail_msg: >-
+      Système non pris en charge : {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+      (Rocky Linux 10 ou Debian 13 uniquement).
+    quiet: true
+
+- name: Vérifier le format de la version Kubernetes
+  ansible.builtin.assert:
+    that: kubernetes_version is regex('^[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: "kubernetes_version doit être de la forme x.y.z (reçu : {{ kubernetes_version }})."
+    quiet: true
+
+- name: Calculer la liste des paquets Kubernetes
+  ansible.builtin.set_fact:
+    packages_minor: "{{ kubernetes_version.split('.')[:2] | join('.') }}"
+    packages_names: "{{ ['kubelet', 'kubeadm'] + (['kubectl'] if packages_kubectl | bool else []) }}"
+
+- name: Installer Kubernetes sur Rocky Linux
+  when: ansible_facts['os_family'] == 'RedHat'
+  block:
+    - name: Ajouter le dépôt Kubernetes
+      ansible.builtin.yum_repository:
+        name: kubernetes
+        description: Kubernetes {{ packages_minor }}
+        baseurl: "https://pkgs.k8s.io/core:/stable:/v{{ packages_minor }}/rpm/"
+        gpgcheck: true
+        gpgkey: "https://pkgs.k8s.io/core:/stable:/v{{ packages_minor }}/rpm/repodata/repomd.xml.key"
+        # Empêche toute montée de version accidentelle lors d'un « dnf upgrade ».
+        exclude: kubelet kubeadm kubectl cri-tools kubernetes-cni
+        enabled: true
+
+    - name: Installer les paquets à la version demandée
+      ansible.builtin.dnf:
+        name: "{{ packages_names | map('regex_replace', '$', '-' ~ kubernetes_version) | list }}"
+        state: present
+        disable_excludes: kubernetes
+        update_cache: true
+
+- name: Installer Kubernetes sur Debian
+  when: ansible_facts['os_family'] == 'Debian'
+  block:
+    - name: Installer les prérequis du dépôt
+      ansible.builtin.apt:
+        name:
+          - python3-debian
+          - ca-certificates
+        state: present
+        update_cache: true
+
+    - name: Ajouter le dépôt Kubernetes
+      ansible.builtin.deb822_repository:
+        name: kubernetes
+        types: deb
+        uris: "https://pkgs.k8s.io/core:/stable:/v{{ packages_minor }}/deb/"
+        suites: /
+        signed_by: "https://pkgs.k8s.io/core:/stable:/v{{ packages_minor }}/deb/Release.key"
+        state: present
+        enabled: true
+
+    - name: Installer les paquets à la version demandée
+      ansible.builtin.apt:
+        name: "{{ packages_names | map('regex_replace', '$', '=' ~ kubernetes_version ~ '-*') | list }}"
+        state: present
+        update_cache: true
+        allow_change_held_packages: true
+
+    - name: Verrouiller les versions (empêche apt upgrade de les modifier)
+      ansible.builtin.dpkg_selections:
+        name: "{{ packages_item }}"
+        selection: hold
+      loop: "{{ packages_names }}"
+      loop_control:
+        loop_var: packages_item
+
+# Démarré par kubeadm init / join : il redémarre en boucle tant que le nœud n'est pas configuré.
+- name: Activer kubelet
+  ansible.builtin.systemd:
+    name: kubelet
+    enabled: true
