@@ -1,9 +1,0 @@
----
-firewall_ports:
-  - "{{ k8s_control_plane_port }}/tcp"   # entrée de l'API Kubernetes (VIP)
-firewall_services:
-  - high-availability                     # pcsd, corosync (knet), pacemaker
-firewall_trusted_sources: []
-
-# Nom du cluster Pacemaker
-pacemaker_cluster_name: cluster_ha_k8s

@@ -1,5 +1,0 @@
----
-k8s_post_install_kubeconfig: /etc/kubernetes/admin.conf
-# Libellé de rôle appliqué aux workers (kubectl get nodes).
-k8s_post_install_worker_label: node-role.kubernetes.io/worker
-k8s_post_install_ready_timeout: 600
