@@ -1,0 +1,38 @@
+---
+# Copier ce fichier en vault.yml, remplir les valeurs puis le chiffrer :
+#
+#   cp vault.yml.example vault.yml
+#   ansible-vault encrypt vault.yml
+#
+# Utiliser ensuite --ask-vault-pass (ou ANSIBLE_VAULT_PASSWORD_FILE) à l'exécution.
+# Les mots de passe qui figuraient dans les anciens scripts du dépôt ("admin",
+# le mot de passe Grafana, les secrets de bases de données) sont à considérer
+# comme compromis : en choisir de nouveaux.
+
+# Mot de passe du compte « hacluster » (authentification pcsd entre haproxy1/2)
+vault_hacluster_password: "CHANGER-MOI"
+
+# Compte administrateur Grafana
+vault_grafana_admin_user: admin
+vault_grafana_admin_password: "CHANGER-MOI"
+
+# Secrets des bases de données externes (rôle k8s_external_services)
+vault_k8s_secrets:
+  - name: postgres-credentials
+    namespace: development
+    data:
+      username: "CHANGER-MOI"
+      password: "CHANGER-MOI"
+      database: "CHANGER-MOI"
+  - name: mongo-credentials
+    namespace: development
+    data:
+      username: "CHANGER-MOI"
+      password: "CHANGER-MOI"
+      database: "CHANGER-MOI"
+  - name: mysql-credentials
+    namespace: development
+    data:
+      username: "CHANGER-MOI"
+      password: "CHANGER-MOI"
+      database: "CHANGER-MOI"

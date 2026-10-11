@@ -1,0 +1,41 @@
+---
+- name: Installer HAProxy
+  ansible.builtin.dnf:
+    name: haproxy
+    state: present
+  tags: [haproxy, packages]
+
+- name: Autoriser HAProxy à se connecter à n'importe quel port (SELinux)
+  ansible.posix.seboolean:
+    name: haproxy_connect_any
+    state: true
+    persistent: true
+  when: ansible_facts['selinux']['status'] | default('disabled') == 'enabled'
+  tags: [haproxy, selinux]
+
+- name: Déployer la configuration HAProxy
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    validate: /usr/sbin/haproxy -c -f %s
+  notify: Reload haproxy
+  tags: [haproxy, config]
+
+- name: Désactiver le démarrage automatique (le service est géré par Pacemaker)
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: false
+  when: haproxy_managed_by_pacemaker | bool
+  tags: [haproxy, service]
+
+- name: Activer et démarrer HAProxy (hors Pacemaker)
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: true
+    state: started
+  when: not haproxy_managed_by_pacemaker | bool
+  tags: [haproxy, service]

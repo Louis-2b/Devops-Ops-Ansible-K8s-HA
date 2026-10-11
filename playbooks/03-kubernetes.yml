@@ -1,0 +1,64 @@
+---
+# Étape 3 - création du cluster : kubeadm init, réseau (CNI), jonction des nœuds.
+#
+# Les modules kubernetes.core s'exécutent avec l'interpréteur Python du venv créé par
+# le rôle k8s_tooling ; il n'est donc défini qu'à partir de la deuxième play.
+
+# Le nœud d'amorçage est le premier control plane par ordre alphabétique : le résultat ne
+# dépend pas de l'ordre de l'inventaire (indispensable avec un inventaire dynamique).
+- name: Désigner le nœud d'amorçage du cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Ajouter le premier control plane au groupe k8s_bootstrap
+      ansible.builtin.add_host:
+        name: "{{ groups['control_plane'] | sort | first }}"
+        groups: k8s_bootstrap
+      changed_when: false
+      tags: [always]
+
+- name: Initialiser le premier nœud du control plane
+  hosts: k8s_bootstrap
+  become: true
+  roles:
+    - role: k8s_tooling
+      tags: [k8s_tooling]
+    - role: kubeadm_init
+      tags: [kubeadm_init]
+
+- name: Installer le réseau des pods (Flannel)
+  hosts: k8s_bootstrap
+  become: true
+  vars:
+    ansible_python_interpreter: "{{ k8s_tooling_venv }}/bin/python"
+  roles:
+    - role: cni_flannel
+      tags: [cni_flannel]
+
+# Un nœud à la fois : chaque ajout de membre etcd doit se terminer avant le suivant.
+- name: Joindre les autres nœuds du control plane
+  hosts: control_plane:!k8s_bootstrap
+  become: true
+  serial: 1
+  roles:
+    - role: kubeadm_join
+      tags: [kubeadm_join]
+
+- name: Joindre les workers
+  hosts: worker_node
+  become: true
+  serial: 5
+  roles:
+    - role: kubeadm_join
+      tags: [kubeadm_join]
+
+- name: Finaliser l'installation (certificats kubelet, état Ready, libellés)
+  hosts: k8s_bootstrap
+  become: true
+  vars:
+    ansible_python_interpreter: "{{ k8s_tooling_venv }}/bin/python"
+  roles:
+    - role: k8s_post_install
+      tags: [k8s_post_install]

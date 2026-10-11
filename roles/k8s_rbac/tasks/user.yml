@@ -1,0 +1,126 @@
+---
+# Variables de boucle : k8s_rbac_user (name, group, validity_days, cluster_role, cluster_role_binding)
+- name: "{{ k8s_rbac_user.name }} - définir les chemins des fichiers"
+  ansible.builtin.set_fact:
+    k8s_rbac_user_id: "{{ k8s_rbac_user.group }}-{{ k8s_rbac_user.name }}"
+    k8s_rbac_user_dir: "{{ k8s_rbac_artifacts_dir }}/users"
+
+- name: "{{ k8s_rbac_user.name }} - créer le dossier d'artefacts (poste de contrôle)"
+  ansible.builtin.file:
+    path: "{{ k8s_rbac_user_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  become: false
+
+- name: "{{ k8s_rbac_user.name }} - vérifier si le certificat existe déjà"
+  ansible.builtin.stat:
+    path: "{{ k8s_rbac_user_dir }}/{{ k8s_rbac_user_id }}.crt"
+  delegate_to: localhost
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  become: false
+  register: k8s_rbac_user_crt
+
+- name: "{{ k8s_rbac_user.name }} - émettre le certificat"
+  when: not k8s_rbac_user_crt.stat.exists
+  block:
+    - name: Générer la clé privée
+      community.crypto.openssl_privatekey:
+        path: "{{ k8s_rbac_user_dir }}/{{ k8s_rbac_user_id }}.key"
+        type: RSA
+        size: 2048
+        mode: "0600"
+      delegate_to: localhost
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      become: false
+
+    - name: Générer la demande de certificat (CSR)
+      community.crypto.openssl_csr_pipe:
+        privatekey_path: "{{ k8s_rbac_user_dir }}/{{ k8s_rbac_user_id }}.key"
+        subject:
+          CN: "{{ k8s_rbac_user.name }}"
+      delegate_to: localhost
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      become: false
+      register: k8s_rbac_user_csr
+
+    - name: Soumettre la CSR à Kubernetes
+      kubernetes.core.k8s:
+        kubeconfig: "{{ k8s_rbac_kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: certificates.k8s.io/v1
+          kind: CertificateSigningRequest
+          metadata:
+            name: "{{ k8s_rbac_user_id }}"
+          spec:
+            request: "{{ k8s_rbac_user_csr.csr | b64encode }}"
+            signerName: kubernetes.io/kube-apiserver-client
+            expirationSeconds: "{{ (k8s_rbac_user.validity_days | default(365)) * 86400 }}"
+            usages:
+              - client auth
+
+    - name: Approuver la CSR
+      ansible.builtin.command: >-
+        kubectl --kubeconfig {{ k8s_rbac_kubeconfig }}
+        certificate approve {{ k8s_rbac_user_id }}
+      changed_when: true
+
+    - name: Attendre l'émission du certificat
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ k8s_rbac_kubeconfig }}"
+        api_version: certificates.k8s.io/v1
+        kind: CertificateSigningRequest
+        name: "{{ k8s_rbac_user_id }}"
+      register: k8s_rbac_user_csr_issued
+      until: >-
+        k8s_rbac_user_csr_issued.resources | length > 0 and
+        k8s_rbac_user_csr_issued.resources[0].status.certificate is defined
+      retries: 12
+      delay: 5
+
+    - name: Enregistrer le certificat (poste de contrôle)
+      ansible.builtin.copy:
+        content: "{{ k8s_rbac_user_csr_issued.resources[0].status.certificate | b64decode }}"
+        dest: "{{ k8s_rbac_user_dir }}/{{ k8s_rbac_user_id }}.crt"
+        mode: "0644"
+      delegate_to: localhost
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      become: false
+
+- name: "{{ k8s_rbac_user.name }} - générer le kubeconfig"
+  ansible.builtin.template:
+    src: user.kubeconfig.j2
+    dest: "{{ k8s_rbac_user_dir }}/{{ k8s_rbac_user_id }}.kubeconfig"
+    mode: "0600"
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    k8s_rbac_cert_data: "{{ lookup('ansible.builtin.file', k8s_rbac_user_dir ~ '/' ~ k8s_rbac_user_id ~ '.crt') | b64encode }}"
+    k8s_rbac_key_data: "{{ lookup('ansible.builtin.file', k8s_rbac_user_dir ~ '/' ~ k8s_rbac_user_id ~ '.key') | b64encode }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: "{{ k8s_rbac_user.name }} - associer le ClusterRole à l'utilisateur"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_rbac_kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: "{{ k8s_rbac_user.cluster_role_binding }}"
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: "{{ k8s_rbac_user.cluster_role }}"
+      subjects:
+        - apiGroup: rbac.authorization.k8s.io
+          kind: User
+          name: "{{ k8s_rbac_user.name }}"

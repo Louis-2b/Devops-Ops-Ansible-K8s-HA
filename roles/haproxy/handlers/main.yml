@@ -1,0 +1,8 @@
+---
+# Recharge HAProxy seulement s'il tourne sur ce nœud. Sur le nœud passif, le service
+# est arrêté (géré par Pacemaker) : l'échec du reload est donc normal et ignoré.
+- name: Reload haproxy
+  ansible.builtin.command: systemctl reload haproxy
+  register: haproxy_reload
+  changed_when: haproxy_reload.rc == 0
+  failed_when: false

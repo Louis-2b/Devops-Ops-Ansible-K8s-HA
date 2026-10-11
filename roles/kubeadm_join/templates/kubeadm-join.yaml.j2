@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: "{{ k8s_control_plane_endpoint }}"
+    token: "{{ kubeadm_join_token.stdout }}"
+    caCertHashes:
+      - "sha256:{{ kubeadm_join_ca_hash.stdout }}"
+nodeRegistration:
+  name: {{ inventory_hostname }}
+  criSocket: {{ kubeadm_join_cri_socket }}
+  kubeletExtraArgs:
+    - name: node-ip
+      value: "{{ ansible_host }}"
+{% if inventory_hostname in groups['control_plane'] %}
+controlPlane:
+  localAPIEndpoint:
+    advertiseAddress: {{ ansible_host }}
+    bindPort: {{ k8s_control_plane_port }}
+  certificateKey: "{{ kubeadm_join_certificate_key.stdout }}"
+{% endif %}

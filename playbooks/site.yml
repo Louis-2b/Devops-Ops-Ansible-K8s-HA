@@ -1,0 +1,14 @@
+---
+# Déploiement complet (hors 00-bootstrap.yml, à exécuter une seule fois au préalable).
+#   ansible-playbook playbooks/site.yml --ask-vault-pass
+- name: Nœuds (système, pare-feu, containerd, kubeadm)
+  ansible.builtin.import_playbook: 01-nodes.yml
+
+- name: Load balancer haute disponibilité
+  ansible.builtin.import_playbook: 02-loadbalancer.yml
+
+- name: Cluster Kubernetes
+  ansible.builtin.import_playbook: 03-kubernetes.yml
+
+- name: Addons
+  ansible.builtin.import_playbook: 04-addons.yml

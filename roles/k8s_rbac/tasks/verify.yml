@@ -1,0 +1,43 @@
+---
+# Équivalent de rbac/check_user_permissions.sh et rbac/check_sa_permissions.sh.
+# Utilisation : ansible-playbook playbooks/04-addons.yml --tags rbac_verify -e k8s_rbac_verify=true
+- name: Tester les droits des utilisateurs
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ k8s_rbac_kubeconfig }} auth can-i
+    {{ item.1 }} {{ item.2 }} --as {{ item.0.name }}
+  loop: "{{ k8s_rbac_users | product(k8s_rbac_verify_verbs, k8s_rbac_verify_resources) | list }}"
+  loop_control:
+    label: "{{ item.0.name }} {{ item.1 }} {{ item.2 }}"
+  register: k8s_rbac_user_checks
+  changed_when: false
+  failed_when: k8s_rbac_user_checks.rc not in [0, 1]
+
+- name: Résultat des droits utilisateurs
+  ansible.builtin.debug:
+    msg: "{{ item.item.0.name }} peut {{ item.item.1 }} {{ item.item.2 }} : {{ 'oui' if item.rc == 0 else 'non' }}"
+  loop: "{{ k8s_rbac_user_checks.results }}"
+  loop_control:
+    label: "{{ item.item.0.name }} {{ item.item.1 }} {{ item.item.2 }}"
+
+- name: Tester les droits des comptes de service
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ k8s_rbac_kubeconfig }} auth can-i
+    {{ item.2 }} {{ item.3 }} -n {{ item.1 }}
+    --as system:serviceaccount:{{ item.0.namespace }}:{{ item.0.name }}
+  loop: >-
+    {{ k8s_rbac_service_accounts
+       | product(k8s_rbac_verify_namespaces, k8s_rbac_verify_verbs, k8s_rbac_verify_resources) | list }}
+  loop_control:
+    label: "{{ item.0.name }} {{ item.2 }} {{ item.3 }} -n {{ item.1 }}"
+  register: k8s_rbac_sa_checks
+  changed_when: false
+  failed_when: k8s_rbac_sa_checks.rc not in [0, 1]
+
+- name: Résultat des droits des comptes de service
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.0.name }} peut {{ item.item.2 }} {{ item.item.3 }}
+      (namespace {{ item.item.1 }}) : {{ 'oui' if item.rc == 0 else 'non' }}
+  loop: "{{ k8s_rbac_sa_checks.results }}"
+  loop_control:
+    label: "{{ item.item.0.name }} {{ item.item.2 }} {{ item.item.3 }} -n {{ item.item.1 }}"

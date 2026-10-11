@@ -1,0 +1,62 @@
+---
+# Étape 0 - à exécuter UNE SEULE FOIS, avec les identifiants initiaux des machines.
+# Remplace install_ansible.sh (clé SSH) et copy_pub_key.sh (ssh-copy-id) de l'ancienne version.
+#
+#   Chaque machine avec son compte initial (= nom d'hôte, comme avant) :
+#     ansible-playbook playbooks/00-bootstrap.yml --ask-pass --ask-become-pass
+#   Même compte initial partout :
+#     ansible-playbook playbooks/00-bootstrap.yml -e bootstrap_initial_user=admin --ask-pass --ask-become-pass
+#   Machines cloud (OpenStack…) : compte « rocky » et clé SSH du cloud, sans mot de passe :
+#     ansible-playbook playbooks/00-bootstrap.yml -e bootstrap_initial_user=rocky -e bootstrap_private_key=~/.ssh/ma-cle-cloud
+#
+# Prérequis sur le poste de contrôle : le paquet « sshpass » pour l'option --ask-pass.
+
+- name: Générer la clé SSH d'Ansible sur le poste de contrôle
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Créer le dossier ~/.ssh
+      ansible.builtin.file:
+        path: "{{ ansible_automation_key | expanduser | dirname }}"
+        state: directory
+        mode: "0700"
+
+    - name: Générer la paire de clés ed25519
+      community.crypto.openssh_keypair:
+        path: "{{ ansible_automation_key | expanduser }}"
+        type: ed25519
+        comment: ansible
+      # L'ancienne version écrasait la clé à chaque exécution ; ici elle est conservée.
+
+- name: Créer le compte d'automatisation sur chaque nœud
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    ansible_user: "{{ bootstrap_initial_user | default(inventory_hostname) }}"
+    ansible_ssh_private_key_file: "{{ bootstrap_private_key | default(ansible_automation_key) }}"
+  tasks:
+    - name: Créer le compte {{ ansible_automation_user }}
+      ansible.builtin.user:
+        name: "{{ ansible_automation_user }}"
+        shell: /bin/bash
+        groups: wheel
+        append: true
+        create_home: true
+
+    - name: Installer la clé publique d'Ansible
+      ansible.posix.authorized_key:
+        user: "{{ ansible_automation_user }}"
+        key: "{{ lookup('ansible.builtin.file', ansible_automation_key | expanduser ~ '.pub') }}"
+        state: present
+
+    - name: Autoriser sudo sans mot de passe pour ce compte
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/90-{{ ansible_automation_user }}"
+        content: "{{ ansible_automation_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: /usr/sbin/visudo -cf %s

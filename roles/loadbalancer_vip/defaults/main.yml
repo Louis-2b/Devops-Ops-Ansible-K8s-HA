@@ -1,0 +1,12 @@
+---
+loadbalancer_vip_primary: "{{ groups['haproxy_srv'] | sort | first }}"
+loadbalancer_vip_address: "{{ k8s_control_plane_vip }}"
+loadbalancer_vip_netmask: "{{ k8s_vip_netmask }}"
+loadbalancer_vip_interface: "{{ k8s_vip_interface }}"
+loadbalancer_vip_port: "{{ k8s_control_plane_port }}"
+
+loadbalancer_vip_group: lb_group
+loadbalancer_vip_resource: Virtual_ip
+loadbalancer_vip_haproxy_resource: haproxy
+loadbalancer_vip_monitor_interval: 30s
+loadbalancer_vip_monitor_timeout: 20s

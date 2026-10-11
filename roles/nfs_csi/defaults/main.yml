@@ -1,0 +1,15 @@
+---
+nfs_csi_chart_version: "v4.13.5"
+nfs_csi_repo_url: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+nfs_csi_namespace: kube-system
+nfs_csi_kubeconfig: /etc/kubernetes/admin.conf
+
+# StorageClass créée avec le pilote (reprend pilote-nfs/nfs-sc-retain.yaml).
+nfs_csi_storage_class:
+  name: nfs-csi
+  server: 192.168.222.40
+  share: /srv/nfs/kubedata
+  reclaim_policy: Retain
+  volume_binding_mode: WaitForFirstConsumer
+  mount_options:
+    - nfsvers=4

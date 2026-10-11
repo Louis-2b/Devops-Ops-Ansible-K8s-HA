@@ -1,0 +1,5 @@
+---
+cni_flannel_version: "v0.28.10"
+cni_flannel_manifest_url: "https://github.com/flannel-io/flannel/releases/download/{{ cni_flannel_version }}/kube-flannel.yml"
+cni_flannel_manifest_dir: /etc/kubernetes/addons
+cni_flannel_kubeconfig: /etc/kubernetes/admin.conf

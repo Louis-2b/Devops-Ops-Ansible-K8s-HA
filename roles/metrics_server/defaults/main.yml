@@ -1,0 +1,13 @@
+---
+metrics_server_chart_version: "3.14.0"
+metrics_server_repo_url: https://kubernetes-sigs.github.io/metrics-server/
+metrics_server_namespace: kube-system
+metrics_server_kubeconfig: /etc/kubernetes/admin.conf
+metrics_server_replicas: 2
+
+# Vrai uniquement si les kubelets n'ont pas de certificat de service signé par le cluster
+# (c'était le comportement de l'ancien script : --kubelet-insecure-tls). Avec
+# k8s_kubelet_serving_cert_bootstrap: true (défaut), laisser à faux.
+metrics_server_kubelet_insecure_tls: false
+
+metrics_server_extra_values: {}
