@@ -1,0 +1,116 @@
+---
+- name: Vérifier que le système est pris en charge
+  ansible.builtin.assert:
+    that: (ansible_facts['distribution'] ~ ' ' ~ ansible_facts['distribution_major_version']) in ['Rocky 10', 'Debian 13']
+    fail_msg: >-
+      Système non pris en charge : {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+      (Rocky Linux 10 ou Debian 13 uniquement).
+    quiet: true
+
+- name: Vérifier les paramètres de haute disponibilité
+  ansible.builtin.assert:
+    that:
+      - ha_vip_address is defined
+      - ha_vip_address | string | length > 0
+      - inventory_hostname in groups[ha_peers_group]
+      - groups[ha_peers_group] | length >= 2
+      - groups[ha_backend_group] | length >= 1
+      - (inventory_hostname not in groups[ha_backend_group]) or (ha_bind_port | int != ha_backend_port | int)
+    fail_msg: >-
+      ha_vip_address est obligatoire ; l'hôte doit appartenir au groupe {{ ha_peers_group }} (au moins 2 hôtes
+      pour une vraie haute disponibilité) ; le groupe {{ ha_backend_group }} ne doit pas être vide ; et si HAProxy est
+      installé sur les control planes, ha_bind_port doit différer de ha_backend_port (conflit avec kube-apiserver).
+    quiet: true
+
+- name: Charger les variables propres à la famille de systèmes
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+
+- name: Installer HAProxy et Keepalived
+  ansible.builtin.package:
+    name: "{{ ha_packages }}"
+    state: present
+
+# HAProxy doit pouvoir se lier à la VIP même quand elle est portée par l'autre nœud.
+- name: Autoriser l'écoute sur une adresse non locale
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    sysctl_file: /etc/sysctl.d/91-kubernetes-ha.conf
+    sysctl_set: true
+    reload: true
+    state: present
+
+- name: Autoriser HAProxy à joindre les control planes (SELinux)
+  ansible.posix.seboolean:
+    name: haproxy_connect_any
+    state: true
+    persistent: true
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - ansible_facts['selinux']['status'] | default('disabled') == 'enabled'
+
+- name: Déployer la configuration HAProxy
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    validate: /usr/sbin/haproxy -c -f %s
+  notify: Reload haproxy
+
+- name: Déployer la configuration Keepalived
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  notify: Restart keepalived
+
+- name: Activer et démarrer HAProxy
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: true
+    state: started
+
+- name: Activer et démarrer Keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    enabled: true
+    state: started
+
+- name: Configurer le pare-feu
+  when: ha_firewall_manage | bool
+  block:
+    - name: Installer firewalld
+      ansible.builtin.package:
+        name: firewalld
+        state: present
+
+    - name: Démarrer firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Ouvrir le port de l'API sur la VIP
+      ansible.posix.firewalld:
+        port: "{{ ha_bind_port }}/tcp"
+        zone: "{{ ha_firewall_zone | default(omit, true) }}"
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Autoriser le protocole VRRP entre les load balancers
+      ansible.posix.firewalld:
+        service: vrrp
+        zone: "{{ ha_firewall_zone | default(omit, true) }}"
+        permanent: true
+        immediate: true
+        state: enabled
+
+- name: Appliquer immédiatement les changements de configuration
+  ansible.builtin.meta: flush_handlers

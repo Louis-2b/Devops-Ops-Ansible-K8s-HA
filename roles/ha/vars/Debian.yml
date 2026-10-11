@@ -1,0 +1,5 @@
+---
+ha_packages:
+  - haproxy
+  - keepalived
+  - procps
