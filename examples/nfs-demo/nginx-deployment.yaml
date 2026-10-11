@@ -1,0 +1,51 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-nfs
+  namespace: default
+  labels:
+    app: nginx-nfs
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-nfs
+
+  template:
+    metadata:
+      labels:
+        app: nginx-nfs
+
+    spec:
+      containers:
+        - name: nginx-nfs
+          image: nginx:1.23
+
+          command:
+            - "/bin/bash"
+            - "-c"
+            - |
+              set -euo pipefail
+              while true; do
+                echo "$(date) Writing to NFS" >> /mnt/nfs/outfile
+                sleep 1
+              done
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          volumeMounts:
+            - name: persistent-storage
+              mountPath: "/mnt/nfs"
+              readOnly: false
+      volumes:
+        - name: persistent-storage
+          persistentVolumeClaim:
+            claimName: pvc-nfs-dynamic
