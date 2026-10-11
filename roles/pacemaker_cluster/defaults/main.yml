@@ -1,0 +1,22 @@
+---
+pacemaker_cluster_name: cluster_ha_k8s
+# Dépôt « High Availability » de Rocky Linux (désactivé par défaut).
+pacemaker_ha_repo: highavailability
+pacemaker_packages:
+  - pacemaker
+  - pcs
+  - corosync
+  - resource-agents
+
+# Nœud qui exécute les commandes pcs (une seule fois pour tout le cluster).
+pacemaker_primary: "{{ groups['haproxy_srv'][0] }}"
+
+# Mot de passe du compte « hacluster » : défini dans le vault (voir secrets.yml).
+pacemaker_hacluster_password: ""
+# Sel fixe (non secret) pour que le hachage soit idempotent.
+pacemaker_hacluster_salt: k8shapcssalt0001
+
+# ⚠ Sans STONITH (fencing), un cluster 2 nœuds ne peut pas se protéger d'un
+# « split-brain ». Acceptable ici car seule une VIP + HAProxy (sans état) sont gérés.
+pacemaker_stonith_enabled: false
+pacemaker_no_quorum_policy: ignore
