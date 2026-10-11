@@ -1,0 +1,36 @@
+---
+- name: Créer le répertoire des manifestes d'addons
+  ansible.builtin.file:
+    path: "{{ cni_flannel_manifest_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  tags: [cni_flannel]
+
+- name: Télécharger le manifeste Flannel (version épinglée)
+  ansible.builtin.get_url:
+    url: "{{ cni_flannel_manifest_url }}"
+    dest: "{{ cni_flannel_manifest_dir }}/kube-flannel-{{ cni_flannel_version }}.yml"
+    owner: root
+    group: root
+    mode: "0640"
+  tags: [cni_flannel]
+
+- name: Aligner le réseau des pods sur le CIDR du cluster
+  ansible.builtin.replace:
+    path: "{{ cni_flannel_manifest_dir }}/kube-flannel-{{ cni_flannel_version }}.yml"
+    regexp: '"Network":\s*"[0-9./]+"'
+    replace: '"Network": "{{ k8s_pod_cidr }}"'
+    mode: "0640"
+  tags: [cni_flannel]
+
+- name: Déployer Flannel
+  kubernetes.core.k8s:
+    kubeconfig: "{{ cni_flannel_kubeconfig }}"
+    src: "{{ cni_flannel_manifest_dir }}/kube-flannel-{{ cni_flannel_version }}.yml"
+    state: present
+    apply: true
+    wait: true
+    wait_timeout: 300
+  tags: [cni_flannel]

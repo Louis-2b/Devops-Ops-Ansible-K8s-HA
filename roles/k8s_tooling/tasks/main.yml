@@ -1,0 +1,60 @@
+---
+- name: Installer pip et git
+  ansible.builtin.dnf:
+    name:
+      - python3-pip
+      - git
+    state: present
+  tags: [k8s_tooling, packages]
+
+- name: Installer les bibliothèques Python dans un environnement virtuel
+  ansible.builtin.pip:
+    name: "{{ k8s_tooling_pip_packages }}"
+    virtualenv: "{{ k8s_tooling_venv }}"
+    virtualenv_command: python3 -m venv --system-site-packages
+    extra_args: "{{ ('--index-url ' ~ k8s_tooling_pip_index_url) if k8s_tooling_pip_index_url | length > 0 else '' }}"
+  tags: [k8s_tooling, python]
+
+- name: Créer le répertoire d'installation de Helm
+  ansible.builtin.file:
+    path: "{{ k8s_tooling_helm_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [k8s_tooling, helm]
+
+- name: Télécharger Helm (somme de contrôle vérifiée)
+  ansible.builtin.get_url:
+    url: "{{ k8s_tooling_helm_download_url }}"
+    dest: "{{ k8s_tooling_helm_install_dir }}/helm-{{ k8s_tooling_helm_version }}-linux-{{ k8s_tooling_helm_arch }}.tar.gz"
+    checksum: "sha256:{{ k8s_tooling_helm_download_url }}.sha256sum"
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [k8s_tooling, helm]
+
+- name: Créer le répertoire de la version de Helm
+  ansible.builtin.file:
+    path: "{{ k8s_tooling_helm_install_dir }}/{{ k8s_tooling_helm_version }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [k8s_tooling, helm]
+
+- name: Extraire Helm
+  ansible.builtin.unarchive:
+    src: "{{ k8s_tooling_helm_install_dir }}/helm-{{ k8s_tooling_helm_version }}-linux-{{ k8s_tooling_helm_arch }}.tar.gz"
+    dest: "{{ k8s_tooling_helm_install_dir }}/{{ k8s_tooling_helm_version }}"
+    remote_src: true
+    mode: "u=rwX,go=rX"
+    creates: "{{ k8s_tooling_helm_install_dir }}/{{ k8s_tooling_helm_version }}/linux-{{ k8s_tooling_helm_arch }}/helm"
+  tags: [k8s_tooling, helm]
+
+- name: Rendre Helm disponible dans le PATH
+  ansible.builtin.file:
+    src: "{{ k8s_tooling_helm_install_dir }}/{{ k8s_tooling_helm_version }}/linux-{{ k8s_tooling_helm_arch }}/helm"
+    dest: /usr/local/bin/helm
+    state: link
+  tags: [k8s_tooling, helm]
