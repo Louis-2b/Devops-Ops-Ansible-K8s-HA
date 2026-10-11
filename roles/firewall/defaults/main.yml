@@ -1,0 +1,10 @@
+---
+firewall_enabled: true
+# Zone firewalld à configurer ; vide = zone par défaut.
+firewall_zone: ""
+# Liste de ports ("6443/tcp", "30000-32767/udp"…), définie par groupe dans group_vars.
+firewall_ports: []
+# Liste de services firewalld ("high-availability"…).
+firewall_services: []
+# Sources (CIDR) placées dans la zone « trusted ».
+firewall_trusted_sources: []

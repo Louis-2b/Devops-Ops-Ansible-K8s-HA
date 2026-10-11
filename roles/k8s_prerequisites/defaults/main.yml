@@ -1,0 +1,28 @@
+---
+
+k8s_prerequisites_packages:
+  - conntrack-tools
+  - ipset
+  - iproute-tc
+  - iptables-nft
+  - socat
+  - container-selinux
+
+k8s_prerequisites_kernel_modules:
+  - overlay
+  - br_netfilter
+
+k8s_prerequisites_ipvs_modules:
+  - ip_vs
+  - ip_vs_rr
+  - ip_vs_wrr
+  - ip_vs_sh
+  - nf_conntrack
+
+k8s_prerequisites_sysctl:
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  net.ipv4.ip_forward: 1
+  fs.inotify.max_user_instances: 8192
+  fs.inotify.max_user_watches: 524288
+

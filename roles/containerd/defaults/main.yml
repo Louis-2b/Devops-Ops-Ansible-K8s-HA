@@ -1,0 +1,13 @@
+---
+# Dépôt Docker CE (fournit le paquet containerd.io), variante RHEL.
+containerd_repo_baseurl: "https://download.docker.com/linux/rhel/{{ ansible_facts['distribution_major_version'] }}/$basearch/stable"
+containerd_repo_gpgkey: https://download.docker.com/linux/rhel/gpg
+
+# Version exacte du paquet (ex. "2.1.4") ; vide = dernière disponible à l'installation.
+containerd_package_version: ""
+
+# Image « pause » (sandbox) ; vide = valeur par défaut de containerd.
+# À aligner sur `kubeadm config images list` si kubeadm signale une incohérence.
+containerd_sandbox_image: ""
+
+containerd_socket: unix:///run/containerd/containerd.sock
