@@ -1,0 +1,10 @@
+---
+# Doit être identique au podSubnet du cluster (kubernetes_pod_cidr du rôle control_plane).
+kubernetes_pod_cidr: 10.244.0.0/16
+# Flannel (backend VXLAN). Pas de NetworkPolicy : voir « Limites connues » du README.
+cni_flannel_version: v0.28.10
+cni_flannel_manifest_url: "https://github.com/flannel-io/flannel/releases/download/{{ cni_flannel_version }}/kube-flannel.yml"
+# Empreinte du manifeste (ex. "sha256:…") ; vide = pas de vérification.
+cni_flannel_manifest_checksum: ""
+cni_manifest_dir: /etc/kubernetes/addons
+cni_rollout_timeout: 300s

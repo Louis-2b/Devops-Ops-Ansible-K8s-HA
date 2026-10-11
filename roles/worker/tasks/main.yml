@@ -1,0 +1,99 @@
+---
+- name: Vérifier les paramètres du worker
+  ansible.builtin.assert:
+    that:
+      - kubernetes_api_endpoint is defined
+      - kubernetes_api_endpoint is regex('^[^:\s]+:[0-9]{1,5}$')
+      - inventory_hostname not in groups[kubernetes_control_plane_group]
+      - inventory_hostname is regex('^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$')
+    fail_msg: >-
+      kubernetes_api_endpoint est obligatoire au format hôte:port ; un worker ne doit pas appartenir au
+      groupe {{ kubernetes_control_plane_group }} ; son nom d'inventaire est le nom du nœud Kubernetes
+      et doit être en minuscules (RFC 1123).
+    quiet: true
+
+- name: Ouvrir les ports du worker
+  ansible.posix.firewalld:
+    port: "{{ worker_port }}"
+    zone: "{{ prerequisites_firewall_zone | default(omit, true) }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ worker_firewall_ports }}"
+  loop_control:
+    loop_var: worker_port
+  when: prerequisites_firewall_manage | bool
+
+- name: Attendre que l'API du premier control plane réponde
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /readyz
+  delegate_to: "{{ kubernetes_primary_control_plane }}"
+  run_once: true  # noqa: run-once[task]
+  register: worker_primary_ready
+  until: worker_primary_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Lister les nœuds déjà membres du cluster
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes -o name
+  delegate_to: "{{ kubernetes_primary_control_plane }}"
+  run_once: true  # noqa: run-once[task]
+  register: worker_members
+  changed_when: false
+
+- name: Joindre ce worker
+  when: ('node/' ~ inventory_hostname) not in worker_members.stdout_lines
+  block:
+    - name: Vérifier qu'aucune jonction partielle n'est en cours sur ce nœud
+      ansible.builtin.stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: worker_kubelet_conf
+
+    - name: Refuser de relancer une jonction interrompue
+      ansible.builtin.fail:
+        msg: >-
+          /etc/kubernetes/kubelet.conf existe mais {{ inventory_hostname }} n'est pas membre du cluster :
+          jonction interrompue. Exécutez « kubeadm reset -f » sur ce nœud puis relancez le rôle.
+      when: worker_kubelet_conf.stat.exists
+
+    - name: Créer un jeton de jonction
+      ansible.builtin.command: kubeadm token create --ttl {{ worker_token_ttl }} --print-join-command
+      delegate_to: "{{ kubernetes_primary_control_plane }}"
+      register: worker_join_command
+      changed_when: true
+      no_log: true
+
+    - name: Vérifier que l'endpoint de l'API est joignable
+      ansible.builtin.wait_for:
+        host: "{{ kubernetes_api_endpoint.rsplit(':', 1)[0] }}"
+        port: "{{ kubernetes_api_endpoint.rsplit(':', 1)[1] }}"
+        timeout: 60
+
+    - name: Déployer la configuration de jonction
+      ansible.builtin.template:
+        src: kubeadm-join.yaml.j2
+        dest: /etc/kubernetes/kubeadm-join.yaml
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Exécuter kubeadm join
+      ansible.builtin.command: kubeadm join --config /etc/kubernetes/kubeadm-join.yaml
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+      changed_when: true
+
+    - name: Attendre que le nœud soit enregistré
+      ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes -o name
+      delegate_to: "{{ kubernetes_primary_control_plane }}"
+      register: worker_registered
+      until: "('node/' ~ inventory_hostname) in worker_registered.stdout_lines"
+      retries: 30
+      delay: 10
+      changed_when: false
+  always:
+    - name: Supprimer la configuration de jonction (elle contient le jeton)
+      ansible.builtin.file:
+        path: /etc/kubernetes/kubeadm-join.yaml
+        state: absent

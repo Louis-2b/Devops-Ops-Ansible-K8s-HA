@@ -1,0 +1,37 @@
+---
+# --- À renseigner ------------------------------------------------------------------------------
+# Adresse stable de l'API Kubernetes « hôte:port » : VIP du rôle ha, nom DNS ou équilibreur
+# externe. C'est la valeur de controlPlaneEndpoint ; elle ne peut plus changer après kubeadm init.
+# kubernetes_api_endpoint: 192.0.2.10:6443
+
+# --- Cluster ------------------------------------------------------------------------------------
+# Groupe d'inventaire des control planes et nœud qui exécute « kubeadm init »
+# (par défaut : premier hôte du groupe par ordre alphabétique, indépendamment de l'inventaire).
+kubernetes_control_plane_group: control_plane
+kubernetes_primary_control_plane: "{{ groups[kubernetes_control_plane_group] | sort | first }}"
+# Valeurs de référence définies dans le rôle prerequisites : kubernetes_pod_cidr, kubernetes_service_cidr.
+# Adresse du nœud dans le cluster (kubelet, etcd, kube-apiserver) ; définir kubernetes_node_ip
+# par hôte pour la remplacer. Par défaut : adresse de la route par défaut.
+control_plane_node_ip: "{{ kubernetes_node_ip | default(ansible_facts['default_ipv4']['address']) }}"
+control_plane_cluster_name: kubernetes
+control_plane_dns_domain: cluster.local
+# Port d'écoute de kube-apiserver sur chaque control plane.
+control_plane_bind_port: 6443
+# Noms ou IP supplémentaires à inscrire dans le certificat de l'API (en plus de l'endpoint
+# et des adresses de tous les control planes).
+control_plane_extra_sans: []
+# Mode de kube-proxy : iptables | nftables | ipvs.
+control_plane_kube_proxy_mode: iptables
+
+# --- Jonction -----------------------------------------------------------------------------------
+# Durée de vie du jeton de jonction (créé à la demande, jamais conservé).
+control_plane_token_ttl: 1h
+# Compte Linux qui reçoit ~/.kube/config sur chaque control plane ; vide = aucun (admin.conf reste
+# lisible par root uniquement).
+control_plane_kubeconfig_user: ""
+
+# --- Pare-feu -----------------------------------------------------------------------------------
+# Ports ouverts sur les control planes (en plus de ceux de prerequisites_firewall_ports).
+control_plane_firewall_ports:
+  - "{{ control_plane_bind_port }}/tcp"
+  - 2379-2380/tcp

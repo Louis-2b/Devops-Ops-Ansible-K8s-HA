@@ -1,0 +1,72 @@
+---
+argument_specs:
+  main:
+    short_description: Control planes kubeadm.
+    description:
+      - Initialise le premier control plane (kubeadm init avec controlPlaneEndpoint = endpoint stable) puis joint les suivants un par un (etcd empilé).
+      - Dépend de prerequisites, container_runtime et packages. À appliquer sur tous les control planes dans un même play.
+    options:
+      kubernetes_api_endpoint:
+        type: str
+        description: Adresse stable de l'API « hôte:port » (VIP, nom DNS ou équilibreur externe). Immuable après kubeadm init.
+        required: true
+      kubernetes_control_plane_group:
+        type: str
+        description: Groupe d'inventaire des control planes.
+        default: control_plane
+      kubernetes_primary_control_plane:
+        type: str
+        description: Nœud qui exécute kubeadm init.
+        default: '{{ groups[kubernetes_control_plane_group] | sort | first }}'
+      kubernetes_pod_cidr:
+        type: str
+        description: Réseau des pods (CIDR).
+        default: 10.244.0.0/16
+      kubernetes_service_cidr:
+        type: str
+        description: Réseau des services (CIDR).
+        default: 10.96.0.0/12
+      control_plane_node_ip:
+        type: str
+        description: Adresse du nœud dans le cluster (kubelet, etcd, kube-apiserver).
+        default: '{{ kubernetes_node_ip | default(ansible_facts[''default_ipv4''][''address'']) }}'
+      control_plane_cluster_name:
+        type: str
+        description: Nom du cluster.
+        default: kubernetes
+      control_plane_dns_domain:
+        type: str
+        description: Domaine DNS du cluster.
+        default: cluster.local
+      control_plane_bind_port:
+        type: int
+        description: Port de kube-apiserver sur chaque control plane.
+        default: 6443
+      control_plane_extra_sans:
+        type: list
+        description: Noms ou IP supplémentaires du certificat de l'API.
+        default: []
+        elements: str
+      control_plane_kube_proxy_mode:
+        type: str
+        description: Mode de kube-proxy.
+        default: iptables
+        choices:
+          - iptables
+          - nftables
+          - ipvs
+      control_plane_token_ttl:
+        type: str
+        description: Durée de vie du jeton de jonction.
+        default: 1h
+      control_plane_kubeconfig_user:
+        type: str
+        description: Compte Linux qui reçoit ~/.kube/config ; vide = aucun.
+        default: ''
+      control_plane_firewall_ports:
+        type: list
+        description: Ports ouverts sur les control planes.
+        default:
+          - '{{ control_plane_bind_port }}/tcp'
+          - 2379-2380/tcp
+        elements: str
