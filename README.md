@@ -14,10 +14,10 @@ scripts bash copiés puis exécutés sur les machines.
                                        │ répartition TCP + sonde /livez
                   ┌────────────────────┼────────────────────┐
                   ▼                    ▼                    ▼
-               k8s1                  k8s2               (k8s3 recommandé)     control plane (kubeadm, etcd empilé)
+               k8s1                  k8s2                  k8s3            control plane (kubeadm, etcd empilé)
                   └────────────────────┬────────────────────┘
                                        ▼
-                                     node1 …                                 workers
+                                node1        node2                          workers
         Réseau pods : Flannel · LoadBalancer : MetalLB (L2) · Ingress : ingress-nginx
         Métriques : metrics-server (HA) · Supervision : kube-prometheus-stack
 ```
@@ -146,16 +146,16 @@ Un rôle utilisé seul a donc besoin de : `k8s_version`, `k8s_pod_cidr`, `k8s_se
 
 ## Points d'attention avant la production
 
-1. **etcd à 2 membres ne tolère aucune panne.** Avec 2 control planes, la perte d'un nœud fait perdre le
-   quorum etcd. Passez à **3 control planes** (décommenter `k8s3` dans l'inventaire) : le rôle gère N nœuds.
+1. **etcd : 3 membres, une panne tolérée.** L'inventaire fournit 3 control planes (quorum 2/3). Avec 2 membres seulement,
+   la perte d'un nœud ferait perdre le quorum ; ne descendez pas sous 3 et gardez un nombre impair.
 2. **ingress-nginx est retiré par le projet Kubernetes depuis mars 2026** : plus aucun correctif de sécurité
    ([annonce](https://www.kubernetes.io/blog/2026/01/29/ingress-nginx-statement/)). Le rôle le conserve pour reproduire
    l'installation existante (désactivable avec `ingress_nginx_enabled: false`) ; planifiez la migration vers
    Gateway API ou un autre contrôleur.
 3. **Secrets compromis** : les mots de passe qui figuraient dans l'ancien dépôt public (`admin`, mot de passe Grafana,
    secrets de bases de données encodés en base64) doivent être changés ; ils restent visibles dans l'historique git.
-4. **Adresses IP** : les anciens scripts étaient incohérents sur `k8s1`/`k8s2` (`.97` ou `.98`). L'inventaire retient
-   `k8s1 = .98`, `k8s2 = .97` (valeurs de HAProxy et `/etc/hosts`) : **vérifiez-les**.
+4. **Adresses IP** : l'inventaire est un exemple (plan d'adressage en en-tête de `hosts.yml`). Adaptez les `ansible_host`
+   à vos VM ; vérifiez aussi `k8s_control_plane_vip`, `k8s_vip_interface`, le pool MetalLB et les IP NFS/bases de données.
 5. **Pacemaker sans STONITH** (`pacemaker_stonith_enabled: false`) : acceptable pour une VIP + HAProxy sans état,
    mais un cluster à 2 nœuds sans fencing reste exposé au split-brain.
 6. **SELinux en `permissive`** (recommandation de la documentation kubeadm). Passer en `enforcing` demande de tester
