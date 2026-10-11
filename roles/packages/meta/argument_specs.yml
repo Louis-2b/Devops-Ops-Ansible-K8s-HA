@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Paquets Kubernetes.
+    description:
+      - Ajoute le dépôt pkgs.k8s.io de la version mineure demandée puis installe kubelet, kubeadm et kubectl en version exacte, protégés contre les mises
+        à jour accidentelles.
+      - À appliquer sur tous les nœuds Kubernetes.
+    options:
+      kubernetes_version:
+        type: str
+        description: Version Kubernetes exacte x.y.z (paquets et control plane).
+        default: 1.36.5
+      packages_kubectl:
+        type: bool
+        description: Installer kubectl (obligatoire sur les control planes).
+        default: true

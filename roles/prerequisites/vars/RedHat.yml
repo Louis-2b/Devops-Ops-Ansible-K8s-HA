@@ -1,0 +1,9 @@
+---
+prerequisites_packages:
+  - conntrack-tools
+  - iproute-tc
+  - iptables-nft
+  - socat
+  - curl
+  - chrony
+prerequisites_chrony_service: chronyd
